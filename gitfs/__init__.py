@@ -3,12 +3,12 @@ import logging
 import os
 import subprocess
 
-from acidfs.datamanager import AcidFSDataManagerMixin
+from gitfs.datamanager import GitFSDataManagerMixin
 
 log = logging.getLogger(__name__)
 
 
-class AcidFS(object):
+class GitFS(object):
     session = None
 
     def __init__(self, path, ref=None):
@@ -69,7 +69,7 @@ class AcidFS(object):
             return obj.new_blob(name, prev)
 
 
-class Session(AcidFSDataManagerMixin):
+class Session(GitFSDataManagerMixin):
 
     def __init__(self, db, ref):
         super(Session, self).__init__()

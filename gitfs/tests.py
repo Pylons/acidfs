@@ -19,11 +19,11 @@ class FunctionalTest(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def test_it(self):
-        from acidfs import AcidFS
+        from gitfs import GitFS
 
         # Repo not initialized yet
         with self.assertRaises(ValueError) as cm:
-            AcidFS(self.tmp)
+            GitFS(self.tmp)
         self.assertTrue(str(cm.exception).startswith('No database found'))
 
         os.chdir(self.tmp)
@@ -33,7 +33,7 @@ class FunctionalTest(unittest.TestCase):
         with open('foo', 'w') as f:
             print >> f, 'bar'
 
-        fs = AcidFS(self.tmp)
+        fs = GitFS(self.tmp)
 
         # No such file
         with self.assertRaises(IOError) as cm:
@@ -55,19 +55,19 @@ class FunctionalTest(unittest.TestCase):
         subprocess.check_call(['git', 'add', '.'])
         subprocess.check_call(['git', 'commit', '-m', 'foo'])
 
-        fs = AcidFS(self.tmp, 'master')
+        fs = GitFS(self.tmp, 'master')
         self.assertEqual(fs.open('foo').read(), 'bar\n')
 
         # Test detached head state
         commit = open('.git/refs/heads/master').read().strip()
         subprocess.check_call(['git', 'checkout', commit])
         with self.assertRaises(ValueError) as cm:
-            fs = AcidFS(self.tmp)
+            fs = GitFS(self.tmp)
         subprocess.check_call(['git', 'checkout', 'master'])
 
         # Bad head
         with self.assertRaises(ValueError) as cm:
-            fs = AcidFS(self.tmp, 'foo')
+            fs = GitFS(self.tmp, 'foo')
             fs.open('foo')
         self.assertEqual(str(cm.exception), 'No such head: foo')
 
@@ -78,5 +78,5 @@ class FunctionalTest(unittest.TestCase):
         subprocess.check_call(['git', 'add', '.'])
         subprocess.check_call(['git', 'commit', '-m', 'foo'])
 
-        fs = AcidFS(self.tmp)
+        fs = GitFS(self.tmp)
         self.assertEqual(fs.open('somedir/foo').read(), 'Howdy!\n')

@@ -14,7 +14,7 @@ if sys.version < '2.7':
 
 testing_extras = tests_require + ['nose', 'coverage']
 
-setup(name='acidfs',
+setup(name='gitfs',
       version=VERSION,
       packages=find_packages(),
       include_package_data=True,
@@ -22,4 +22,4 @@ setup(name='acidfs',
       install_requires=requires,
       tests_require=tests_require,
       extras_require={'testing': testing_extras},
-      test_suite="acidfs.tests")
+      test_suite="gitfs.tests")

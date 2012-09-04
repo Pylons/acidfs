@@ -1,7 +1,7 @@
 import transaction
 
 
-class AcidFSDataManagerMixin(object):
+class GitFSDataManagerMixin(object):
     closed = False
 
     def __init__(self):
