@@ -90,7 +90,7 @@ class Session(AcidFSDataManagerMixin):
                 return
         else:
             self.prev_commit = open(reffile).read().strip()
-            self.tree = TreeNode.read(db, '%s^{tree}' % ref)
+            self.tree = TreeNode.read(db, '%s^{tree}' % self.prev_commit)
 
     def find(self, path):
         assert isinstance(path, (list, tuple))
