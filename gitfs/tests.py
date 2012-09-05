@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import transaction
 
 
 class FunctionalTest(unittest.TestCase):
@@ -80,3 +81,53 @@ class FunctionalTest(unittest.TestCase):
 
         fs = GitFS(self.tmp)
         self.assertEqual(fs.open('somedir/foo').read(), 'Howdy!\n')
+
+        # No such folder
+        with self.assertRaises(IOError) as cm:
+            fs.open('wunder/bar', 'w')
+        e = cm.exception
+        self.assertEqual(e.errno, 2)
+        self.assertEqual(e.strerror, 'No such file or directory')
+        self.assertEqual(e.filename, 'wunder/bar')
+
+        # Isn't a folder
+        with self.assertRaises(IOError) as cm:
+            fs.open('foo/bar', 'w')
+        e = cm.exception
+        self.assertEqual(e.errno, 20)
+        self.assertEqual(e.strerror, 'Not a directory')
+        self.assertEqual(e.filename, 'foo/bar')
+
+        # Is a folder
+        with self.assertRaises(IOError) as cm:
+            fs.open('somedir', 'w')
+        e = cm.exception
+        self.assertEqual(e.errno, 21)
+        self.assertEqual(e.strerror, 'Is a directory')
+        self.assertEqual(e.filename, 'somedir')
+
+        # New file
+        with fs.open('hello', 'w') as f:
+            print >> f, 'Hi Mom!'
+        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
+
+        transaction.abort()
+
+        with self.assertRaises(IOError) as cm:
+            fs.open('hello')
+        e = cm.exception
+        self.assertEqual(e.errno, 2)
+        self.assertEqual(e.strerror, 'No such file or directory')
+        self.assertEqual(e.filename, 'hello')
+
+        with fs.open('hello', 'w') as f:
+            print >> f, 'Hi Mom!'
+        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
+
+        transaction.commit()
+        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
+        fs = GitFS(self.tmp)
+        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
+        transaction.commit() # nothing to commit
+        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
+
