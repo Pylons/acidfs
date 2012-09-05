@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 # Implement locking
 # Make sure all subprocess calls are checked
 # disuse 'cd' context manager in favor of cwd argument to subprocess calls
-# Keep working directory up to date with database changes (if appropriate)
+# Make sure subprocesses aren't leaking into stdout and stderr
 
 class GitFS(object):
     session = None
@@ -203,8 +203,8 @@ class Session(object):
             if working_head == self.ref:
                 # And the working directory is tracking the branch we just
                 # committed to.
-                # TODO do something
-                pass
+                subprocess.check_call(['git', 'reset', 'HEAD', '--hard'],
+                                      cwd=self.db[:-5])
 
         # Let other sessions commit
         self.release_lock()
