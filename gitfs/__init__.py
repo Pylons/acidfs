@@ -230,9 +230,7 @@ class TreeNode(object):
     def read(cls, db, oid):
         node = cls(db)
         contents = node.contents
-        with cd(db):
-            lstree = subprocess.Popen(['git', 'ls-tree', oid],
-                                      stdout=subprocess.PIPE)
+        with popen(['git', 'ls-tree', oid], stdout=subprocess.PIPE) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = line.split()
                 contents[name] = (type, oid, None)
@@ -294,15 +292,13 @@ class TreeNode(object):
                 self.contents[name] = ('tree', new_oid, None)
 
         # Save tree object out to database
-        proc = subprocess.Popen(['git', 'mktree'], cwd=self.db,
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE)
-        for name, (type, oid, obj) in self.contents.items():
-            mode = '100644' if type == 'blob' else '040000'
-            print >> proc.stdin, '%s %s %s\t%s' % (mode, type, oid, name)
-        proc.stdin.close()
-        oid = proc.stdout.read().strip()
-        proc.stdout.close()
+        with popen(['git', 'mktree'], cwd=self.db,
+                   stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
+            for name, (type, oid, obj) in self.contents.items():
+                mode = '100644' if type == 'blob' else '040000'
+                print >> proc.stdin, '%s %s %s\t%s' % (mode, type, oid, name)
+            proc.stdin.close()
+            oid = proc.stdout.read().strip()
         return oid
 
 
@@ -313,15 +309,7 @@ class Blob(object):
         self.oid = oid
 
     def open(self):
-        db = self.db
-        with cd(db):
-            # Documentation and internet scuttlebutt on pipe IO is generally
-            # very confusing and contradictory.  This may not be the best way
-            # to do it or the best way may be different depending on Python
-            # version.
-            proc = subprocess.Popen(['git', 'cat-file', 'blob', self.oid],
-                                    stdout=subprocess.PIPE)
-        return proc.stdout
+        return BlobStream(self.db, self.oid)
 
     def find(self, path):
         if not path:
@@ -334,22 +322,25 @@ class NewBlob(io.RawIOBase):
         self.db = db
         self.prev = prev
 
-        proc = subprocess.Popen(
+        self.proc = subprocess.Popen(
             ['git', 'hash-object', '-w', '--stdin'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=db)
-        self.sink = proc.stdin
-        self.source = proc.stdout
 
     def write(self, b):
-        return self.sink.write(b)
+        return self.proc.stdin.write(b)
 
     def close(self):
-        super(NewBlob, self).close()
-        self.sink.close()
-        oid = self.source.read().strip()
-        self.source.close()
-        self.parent.contents[self.name] = ('blob', oid, None)
-        self.parent.set_dirty()
+        if not self.closed:
+            super(NewBlob, self).close()
+            self.proc.stdin.close()
+            oid = self.proc.stdout.read().strip()
+            self.proc.stdout.close()
+            self.parent.contents[self.name] = ('blob', oid, None)
+            self.parent.set_dirty()
+            retcode = self.proc.wait()
+            if retcode != 0:
+                raise subprocess.CalledProcessError(
+                    retcode, 'git hash-object -w --stdin')
 
     def writable(self):
         return True
@@ -358,6 +349,31 @@ class NewBlob(io.RawIOBase):
         if self.prev:
             return self.prev.open()
         raise IOError(2, 'No such file or directory', object_path(self))
+
+
+class BlobStream(io.RawIOBase):
+
+    def __init__(self, db, oid):
+        # XXX buffer?
+        self.proc = subprocess.Popen(
+            ['git', 'cat-file', 'blob', oid],
+            stdout=subprocess.PIPE, cwd=db)
+        self.oid = oid
+
+    def readable(self):
+        return True
+
+    def read(self, n=-1):
+        return self.proc.stdout.read(n)
+
+    def close(self):
+        if not self.closed:
+            super(BlobStream, self).close()
+            self.proc.stdout.close()
+            retcode = self.proc.wait()
+            if retcode != 0:
+                raise subprocess.CalledProcessError(
+                    retcode, 'git cat-file blob %s' % self.oid)
 
 
 def object_path(obj):
@@ -369,13 +385,17 @@ def object_path(obj):
     return '/'.join(path)
 
 
-@contextlib.contextmanager
-def cd(path):
-    prev = os.getcwd()
-    os.chdir(path)
-    yield
-    os.chdir(prev)
-
-
 class ConflictError(Exception):
     pass
+
+
+@contextlib.contextmanager
+def popen(args, **kw):
+    proc = subprocess.Popen(args, **kw)
+    yield proc
+    for stream in (proc.stdin, proc.stdout, proc.stderr):
+        if stream is not None:
+            stream.close()
+    retcode = proc.wait()
+    if  retcode != 0:
+        raise subprocess.CalledProcessError(retcode, repr(args))
