@@ -28,7 +28,7 @@ class FunctionalTest(unittest.TestCase):
         self.assertTrue(str(cm.exception).startswith('No database found'))
 
         os.chdir(self.tmp)
-        subprocess.check_call(['git',  'init', '.'])
+        subprocess.check_output(['git',  'init', '.'], stderr=subprocess.STDOUT)
 
         # Add a file to working directory but don't commit yet
         with open('foo', 'w') as f:
@@ -53,18 +53,21 @@ class FunctionalTest(unittest.TestCase):
         self.assertEqual(e.filename, '')
 
         # Commit working directory
-        subprocess.check_call(['git', 'add', '.'])
-        subprocess.check_call(['git', 'commit', '-m', 'foo'])
+        subprocess.check_output(['git', 'add', '.'], stderr=subprocess.STDOUT)
+        subprocess.check_output(['git', 'commit', '-m', 'foo'],
+                                stderr=subprocess.STDOUT)
 
         fs = GitFS(self.tmp, 'master')
         self.assertEqual(fs.open('foo').read(), 'bar\n')
 
         # Test detached head state
         commit = open('.git/refs/heads/master').read().strip()
-        subprocess.check_call(['git', 'checkout', commit])
+        subprocess.check_output(['git', 'checkout', commit],
+                                stderr=subprocess.STDOUT)
         with self.assertRaises(ValueError) as cm:
             fs = GitFS(self.tmp)
-        subprocess.check_call(['git', 'checkout', 'master'])
+        subprocess.check_output(['git', 'checkout', 'master'],
+                                stderr=subprocess.STDOUT)
 
         # Bad head
         with self.assertRaises(ValueError) as cm:
@@ -76,8 +79,9 @@ class FunctionalTest(unittest.TestCase):
         os.mkdir('somedir')
         with open('somedir/foo', 'w') as f:
             print >> f, 'Howdy!'
-        subprocess.check_call(['git', 'add', '.'])
-        subprocess.check_call(['git', 'commit', '-m', 'foo'])
+        subprocess.check_output(['git', 'add', '.'], stderr=subprocess.STDOUT)
+        subprocess.check_output(['git', 'commit', '-m', 'foo'],
+                                stderr=subprocess.STDOUT)
 
         fs = GitFS(self.tmp)
         self.assertEqual(fs.open('somedir/foo').read(), 'Howdy!\n')
