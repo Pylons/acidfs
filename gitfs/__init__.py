@@ -121,7 +121,7 @@ class Session(object):
         """
         Abort transaction without attempting to commit.
         """
-        self.closed = True
+        self.close()
 
     def tpc_begin(self, tx):
         """
@@ -212,14 +212,17 @@ class Session(object):
                 subprocess.check_output(['git', 'reset', 'HEAD', '--hard'],
                                         cwd=self.db[:-5])
 
-        # Let other sessions commit
-        self.release_lock()
+        self.close()
 
     def tpc_abort(self, tx):
         """
         Clean up in the event that some data manager has vetoed the transaction.
         """
+        self.close()
+
+    def close(self):
         self.closed = True
+        self.release_lock()
 
     def acquire_lock(self):
         pass # TODO
