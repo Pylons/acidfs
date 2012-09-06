@@ -200,7 +200,7 @@ class Session(object):
             print >> f, self.commit_oid
 
         # Update working directory if appropriate
-        if self.db.endswith('.git'):
+        if os.path.split(self.db)[1] == '.git':
             # Is not a bare repository
             headfile = os.path.join(self.db, 'HEAD')
             working_head = open(headfile).read().strip()
