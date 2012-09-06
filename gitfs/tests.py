@@ -76,12 +76,11 @@ class FunctionalTest(unittest.TestCase):
         self.assertEqual(str(cm.exception), 'No such head: foo')
 
         # Nest a dir
-        os.mkdir('somedir')
-        with open('somedir/foo', 'w') as f:
+        fs = GitFS(self.tmp)
+        fs.mkdir('somedir')
+        with fs.open('somedir/foo', 'w') as f:
             print >> f, 'Howdy!'
-        subprocess.check_output(['git', 'add', '.'], stderr=subprocess.STDOUT)
-        subprocess.check_output(['git', 'commit', '-m', 'foo'],
-                                stderr=subprocess.STDOUT)
+        transaction.commit()
 
         fs = GitFS(self.tmp)
         self.assertEqual(fs.open('somedir/foo').read(), 'Howdy!\n')

@@ -7,12 +7,6 @@ import transaction
 
 log = logging.getLogger(__name__)
 
-# TODO
-#
-# Can subprocesses be context managers?
-# Implement locking
-# Make sure all subprocess calls are checked
-# disuse 'cd' context manager in favor of cwd argument to subprocess calls
 
 class GitFS(object):
     session = None
@@ -48,8 +42,7 @@ class GitFS(object):
 
     def open(self, path, mode='r'):
         session = self._session()
-        if not isinstance(path, (list, tuple)):
-            path = filter(None, path.split('/'))
+        path = mkpath(path)
 
         if mode == 'r':
             obj = session.find(path)
@@ -73,6 +66,23 @@ class GitFS(object):
                 raise IOError(21, 'Is a directory', '/'.join(path))
             assert isinstance(prev, (Blob, type(None)))
             return obj.new_blob(name, prev)
+
+        raise ValueError("Bad mode: %s" % mode)
+
+    def mkdir(self, path):
+        session = self._session()
+        path = mkpath(path)
+        name = path[-1]
+
+        parent = session.find(path[:-1])
+        if not parent:
+            raise IOError(2, 'No such file or directory', '/'.join(path))
+        if not isinstance(parent, TreeNode):
+            raise IOError(20, 'Not a directory', '/'.join(path))
+        if name in parent.contents:
+            raise IOError(17, 'File exists', '/'.join(path))
+
+        parent.new_tree(name)
 
 
 class Session(object):
@@ -107,9 +117,6 @@ class Session(object):
         if tree:
             return tree.find(path)
 
-    ############################################################################
-    # datamanager API methods, for use as datamanager for transaction package.
-    #
     def abort(self, tx):
         """
         Abort transaction without attempting to commit.
@@ -224,7 +231,7 @@ class Session(object):
 class TreeNode(object):
     parent = None
     name = None
-    dirty = False
+    dirty = True
 
     @classmethod
     def read(cls, db, oid):
@@ -235,6 +242,7 @@ class TreeNode(object):
                 mode, type, oid, name = line.split()
                 contents[name] = (type, oid, None)
 
+        node.dirty = False
         return node
 
     def __init__(self, db):
@@ -270,7 +278,15 @@ class TreeNode(object):
         obj.parent = self
         obj.name = name
         self.contents[name] = ('blob', None, obj)
+        self.set_dirty()
         return obj
+
+    def new_tree(self, name):
+        node = TreeNode(self.db)
+        node.parent = self
+        node.name = name
+        self.contents[name] = ('tree', None, node)
+        self.set_dirty()
 
     def set_dirty(self):
         node = self
@@ -336,7 +352,6 @@ class NewBlob(io.RawIOBase):
             oid = self.proc.stdout.read().strip()
             self.proc.stdout.close()
             self.parent.contents[self.name] = ('blob', oid, None)
-            self.parent.set_dirty()
             retcode = self.proc.wait()
             if retcode != 0:
                 raise subprocess.CalledProcessError(
@@ -399,3 +414,9 @@ def popen(args, **kw):
     retcode = proc.wait()
     if  retcode != 0:
         raise subprocess.CalledProcessError(retcode, repr(args))
+
+
+def mkpath(path):
+    if not isinstance(path, (list, tuple)):
+        path = filter(None, path.split('/'))
+    return path
