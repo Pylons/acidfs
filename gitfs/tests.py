@@ -11,6 +11,35 @@ import tempfile
 import transaction
 
 
+class BaseTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp('.gitstore-test')
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+
+class InitializationTests(BaseTest):
+
+    def make_one(self, *args, **kw):
+        from gitfs import GitFS as test_class
+        return test_class(self.tmp, *args, **kw)
+
+    def test_new_repo_w_working_directory(self):
+        self.make_one()
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, '.git')))
+
+    def test_new_bare_repo(self):
+        self.make_one(bare=True)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, 'HEAD')))
+
+    def test_no_repo_dont_create(self):
+        with self.assertRaises(ValueError) as cm:
+            self.make_one(create=False)
+        self.assertTrue(str(cm.exception).startswith('No database found'))
+
+
 class FunctionalTest(unittest.TestCase):
 
     def setUp(self):
@@ -24,7 +53,7 @@ class FunctionalTest(unittest.TestCase):
 
         # Repo not initialized yet
         with self.assertRaises(ValueError) as cm:
-            GitFS(self.tmp)
+            GitFS(self.tmp, create=False)
         self.assertTrue(str(cm.exception).startswith('No database found'))
 
         os.chdir(self.tmp)

@@ -11,16 +11,25 @@ log = logging.getLogger(__name__)
 class GitFS(object):
     session = None
 
-    def __init__(self, path, ref=None):
-        self.db = db = os.path.join(path, '.git')
+    def __init__(self, path, ref=None, create=True, bare=False):
+        db = os.path.join(path, '.git')
         if not os.path.exists(db):
             # Bare repository
-            self.db = db = path
+            db = path
 
         head = os.path.join(db, 'HEAD')
         if not os.path.exists(head):
-            raise ValueError('No database found in %s' % path)
+            if create:
+                if bare:
+                    subprocess.check_output(['git', 'init', '--bare', db])
+                else:
+                    subprocess.check_output(['git', 'init', path])
+                    db = os.path.join(path, '.git')
+                    head = os.path.join(db, 'HEAD')
+            else:
+                raise ValueError('No database found in %s' % path)
 
+        self.db = db
         if ref:
             self.ref = ref
             return
