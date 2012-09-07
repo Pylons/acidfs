@@ -1,4 +1,5 @@
 import contextlib
+import fcntl
 import io
 import logging
 import os
@@ -99,10 +100,12 @@ class GitFS(object):
 class Session(object):
     closed = False
     joined = False
+    lockfd = None
 
     def __init__(self, db, ref):
         self.db = db
         self.ref = ref
+        self.lock_file = os.path.join(db, 'gitfs.lock')
         transaction.get().join(self)
 
         reffile = os.path.join(db, 'refs', 'heads', ref)
@@ -236,10 +239,16 @@ class Session(object):
         self.release_lock()
 
     def acquire_lock(self):
-        pass # TODO
+        assert not self.lockfd
+        self.lockfd = fd = os.open(self.lock_file, os.O_WRONLY | os.O_CREAT)
+        fcntl.lockf(fd, fcntl.LOCK_EX)
 
     def release_lock(self):
-        pass # TODO
+        fd = self.lockfd
+        if fd is not None:
+            fcntl.lockf(fd, fcntl.LOCK_UN)
+            os.close(fd)
+            self.lockfd = None
 
 
 class TreeNode(object):

@@ -5,11 +5,14 @@ except ImportError:
     import unittest
 
 import contextlib
+import fcntl
 import mock
 import os
 import shutil
+import sys
 import subprocess
 import tempfile
+import time
 import transaction
 
 
@@ -257,6 +260,17 @@ class OperationalTests(unittest.TestCase):
             with self.fs.open('foo', 'r') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
                 f.read()
+
+    def test_conflict_error(self):
+        from gitfs import ConflictError
+        self.fs.open('foo', 'w').write('Hello!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
+        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
+                                cwd=self.tmp)
+        with self.assertRaises(ConflictError):
+            transaction.commit()
+
 
 class PopenTests(unittest.TestCase):
 
