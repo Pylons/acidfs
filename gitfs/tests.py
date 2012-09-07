@@ -11,16 +11,13 @@ import tempfile
 import transaction
 
 
-class BaseTest(unittest.TestCase):
+class InitializationTests(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp('.gitstore-test')
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
-
-
-class InitializationTests(BaseTest):
 
     def make_one(self, *args, **kw):
         from gitfs import GitFS as test_class
@@ -39,127 +36,65 @@ class InitializationTests(BaseTest):
             self.make_one(create=False)
         self.assertTrue(str(cm.exception).startswith('No database found'))
 
+    def test_detached_head(self):
+        fs = self.make_one()
+        fs.open('foo', 'w').write('bar')
+        transaction.commit()
 
-class FunctionalTest(unittest.TestCase):
+        os.chdir(self.tmp)
+        reffile = os.path.join(self.tmp, '.git', 'refs', 'heads', 'master')
+        commit = open(reffile).read().strip()
+        subprocess.check_output(['git', 'checkout', commit],
+                                stderr=subprocess.STDOUT)
+        with self.assertRaises(ValueError) as cm:
+            fs = self.make_one()
+        self.assertEqual(str(cm.exception), 'Cannot use detached HEAD state.')
+
+    def test_branch(self):
+        fs = self.make_one(branch='foo')
+        fs.open('foo', 'w').write('bar')
+        transaction.commit()
+
+        reffile = os.path.join(self.tmp, '.git', 'refs', 'heads', 'foo')
+        self.assertTrue(os.path.exists(reffile))
+
+
+class OperationalTests(unittest.TestCase):
 
     def setUp(self):
+        from gitfs import GitFS as test_class
         self.tmp = tempfile.mkdtemp('.gitstore-test')
+        self.fs = test_class(self.tmp)
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
 
-    def test_it(self):
-        from gitfs import GitFS
-
-        # Repo not initialized yet
-        with self.assertRaises(ValueError) as cm:
-            GitFS(self.tmp, create=False)
-        self.assertTrue(str(cm.exception).startswith('No database found'))
-
-        os.chdir(self.tmp)
-        subprocess.check_output(['git',  'init', '.'], stderr=subprocess.STDOUT)
-
-        # Add a file to working directory but don't commit yet
-        with open('foo', 'w') as f:
-            print >> f, 'bar'
-
-        fs = GitFS(self.tmp)
-
-        # No such file
-        with self.assertRaises(IOError) as cm:
-            fs.open('foo')
-        e = cm.exception
-        self.assertEqual(e.errno, 2)
-        self.assertEqual(e.strerror, 'No such file or directory')
-        self.assertEqual(e.filename, 'foo')
-
-        # Is a directory
-        with self.assertRaises(IOError) as cm:
-            fs.open('')
-        e = cm.exception
-        self.assertEqual(e.errno, 21)
-        self.assertEqual(e.strerror, 'Is a directory')
-        self.assertEqual(e.filename, '')
-
-        # Commit working directory
-        subprocess.check_output(['git', 'add', '.'], stderr=subprocess.STDOUT)
-        subprocess.check_output(['git', 'commit', '-m', 'foo'],
-                                stderr=subprocess.STDOUT)
-
-        fs = GitFS(self.tmp, 'master')
-        self.assertEqual(fs.open('foo').read(), 'bar\n')
-
-        # Test detached head state
-        commit = open('.git/refs/heads/master').read().strip()
-        subprocess.check_output(['git', 'checkout', commit],
-                                stderr=subprocess.STDOUT)
-        with self.assertRaises(ValueError) as cm:
-            fs = GitFS(self.tmp)
-        subprocess.check_output(['git', 'checkout', 'master'],
-                                stderr=subprocess.STDOUT)
-
-        # Bad head
-        with self.assertRaises(ValueError) as cm:
-            fs = GitFS(self.tmp, 'foo')
-            fs.open('foo')
-        self.assertEqual(str(cm.exception), 'No such head: foo')
-
-        # Nest a dir
-        fs = GitFS(self.tmp)
-        fs.mkdir('somedir')
-        with fs.open('somedir/foo', 'w') as f:
-            print >> f, 'Howdy!'
+    def test_read_write_file(self):
+        fs = self.fs
+        with fs.open('foo', 'w') as f:
+            print >> f, 'Hello'
+        with fs.open('foo') as f:
+            self.assertEqual(f.read(), 'Hello\n')
+        actual_file = os.path.join(self.tmp, 'foo')
+        self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
+        with fs.open('foo') as f:
+            self.assertEqual(f.read(), 'Hello\n')
+        with open(actual_file) as f:
+            self.assertEqual(f.read(), 'Hello\n')
 
-        fs = GitFS(self.tmp)
-        self.assertEqual(fs.open('somedir/foo').read(), 'Howdy!\n')
-
-        # No such folder
-        with self.assertRaises(IOError) as cm:
-            fs.open('wunder/bar', 'w')
-        e = cm.exception
-        self.assertEqual(e.errno, 2)
-        self.assertEqual(e.strerror, 'No such file or directory')
-        self.assertEqual(e.filename, 'wunder/bar')
-
-        # Isn't a folder
-        with self.assertRaises(IOError) as cm:
-            fs.open('foo/bar', 'w')
-        e = cm.exception
-        self.assertEqual(e.errno, 20)
-        self.assertEqual(e.strerror, 'Not a directory')
-        self.assertEqual(e.filename, 'foo/bar')
-
-        # Is a folder
-        with self.assertRaises(IOError) as cm:
-            fs.open('somedir', 'w')
-        e = cm.exception
-        self.assertEqual(e.errno, 21)
-        self.assertEqual(e.strerror, 'Is a directory')
-        self.assertEqual(e.filename, 'somedir')
-
-        # New file
-        with fs.open('hello', 'w') as f:
-            print >> f, 'Hi Mom!'
-        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
-
-        transaction.abort()
-
-        with self.assertRaises(IOError) as cm:
-            fs.open('hello')
-        e = cm.exception
-        self.assertEqual(e.errno, 2)
-        self.assertEqual(e.strerror, 'No such file or directory')
-        self.assertEqual(e.filename, 'hello')
-
-        with fs.open('hello', 'w') as f:
-            print >> f, 'Hi Mom!'
-        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
-
+    def test_read_write_file_in_subfolder(self):
+        fs = self.fs
+        fs.mkdir('foo')
+        with fs.open('foo/bar', 'w') as f:
+            print >> f, 'Hello'
+        with fs.open('foo/bar') as f:
+            self.assertEqual(f.read(), 'Hello\n')
+        actual_file = os.path.join(self.tmp, 'foo', 'bar')
+        self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
-        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
-        fs = GitFS(self.tmp)
-        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
-        transaction.commit() # nothing to commit
-        self.assertEqual(fs.open('hello').read(), 'Hi Mom!\n')
+        with fs.open('foo/bar') as f:
+            self.assertEqual(f.read(), 'Hello\n')
+        with open(actual_file) as f:
+            self.assertEqual(f.read(), 'Hello\n')
 

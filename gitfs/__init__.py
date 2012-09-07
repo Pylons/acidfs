@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 class GitFS(object):
     session = None
 
-    def __init__(self, path, ref=None, create=True, bare=False):
+    def __init__(self, path, branch=None, create=True, bare=False):
         db = os.path.join(path, '.git')
         if not os.path.exists(db):
             # Bare repository
@@ -30,8 +30,8 @@ class GitFS(object):
                 raise ValueError('No database found in %s' % path)
 
         self.db = db
-        if ref:
-            self.ref = ref
+        if branch:
+            self.ref = branch
             return
 
         headref = open(head).read().strip()
@@ -101,6 +101,7 @@ class Session(object):
     def __init__(self, db, ref):
         self.db = db
         self.ref = ref
+        transaction.get().join(self)
 
         reffile = os.path.join(db, 'refs', 'heads', ref)
         if not os.path.exists(reffile):
@@ -118,7 +119,6 @@ class Session(object):
             self.prev_commit = open(reffile).read().strip()
             self.tree = TreeNode.read(db, '%s^{tree}' % self.prev_commit)
 
-        transaction.get().join(self)
 
     def find(self, path):
         assert isinstance(path, (list, tuple))
@@ -249,7 +249,8 @@ class TreeNode(object):
     def read(cls, db, oid):
         node = cls(db)
         contents = node.contents
-        with popen(['git', 'ls-tree', oid], stdout=subprocess.PIPE) as lstree:
+        with popen(['git', 'ls-tree', oid],
+                   stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = line.split()
                 contents[name] = (type, oid, None)
@@ -311,10 +312,8 @@ class TreeNode(object):
         for name, (type, oid, obj) in list(self.contents.items()):
             if not obj:
                 continue # Nothing to do
-            if type == 'blob' and not oid:
-                raise ValueError(
-                    'Open file: %s.  Must close files before commit.' %
-                    object_path(obj))
+            if isinstance(obj, NewBlob):
+                obj.close()
             elif type == 'tree' and obj.dirty:
                 new_oid = obj.save()
                 self.contents[name] = ('tree', new_oid, None)
@@ -406,7 +405,7 @@ class BlobStream(io.RawIOBase):
 def object_path(obj):
     path = []
     node = obj
-    while node:
+    while node.parent:
         path.insert(0, node.name)
         node = node.parent
     return '/'.join(path)
