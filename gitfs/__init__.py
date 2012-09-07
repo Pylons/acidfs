@@ -56,23 +56,25 @@ class GitFS(object):
         if mode == 'r':
             obj = session.find(path)
             if not obj:
-                raise IOError(2, 'No such file or directory', '/'.join(path))
+                raise NoSuchFileOrDirectory('/'.join(path))
             if isinstance(obj, TreeNode):
-                raise IOError(21, 'Is a directory', '/'.join(path))
+                raise IsADirectory('/'.join(path))
             assert isinstance(obj, Blob)
             return obj.open()
 
         elif mode == 'w':
+            if not path:
+                raise IsADirectory('')
             name = path[-1]
             dirpath = path[:-1]
             obj = session.find(dirpath)
             if not obj:
-                raise IOError(2, 'No such file or directory', '/'.join(path))
+                raise NoSuchFileOrDirectory('/'.join(path))
             if not isinstance(obj, TreeNode):
-                raise IOError(20, 'Not a directory', '/'.join(path))
+                raise NotADirectory('/'.join(path))
             prev = obj.get(name)
             if isinstance(prev, TreeNode):
-                raise IOError(21, 'Is a directory', '/'.join(path))
+                raise IsADirectory('/'.join(path))
             assert isinstance(prev, (Blob, type(None)))
             return obj.new_blob(name, prev)
 
@@ -85,11 +87,11 @@ class GitFS(object):
 
         parent = session.find(path[:-1])
         if not parent:
-            raise IOError(2, 'No such file or directory', '/'.join(path))
+            raise NoSuchFileOrDirectory('/'.join(path))
         if not isinstance(parent, TreeNode):
-            raise IOError(20, 'Not a directory', '/'.join(path))
+            raise NotADirectory('/'.join(path))
         if name in parent.contents:
-            raise IOError(17, 'File exists', '/'.join(path))
+            raise FileExists('/'.join(path))
 
         parent.new_tree(name)
 
@@ -374,7 +376,7 @@ class NewBlob(io.RawIOBase):
     def open(self):
         if self.prev:
             return self.prev.open()
-        raise IOError(2, 'No such file or directory', object_path(self))
+        raise NoSuchFileOrDirectory(object_path(self))
 
 
 class BlobStream(io.RawIOBase):
@@ -429,5 +431,24 @@ def popen(args, **kw):
 
 def mkpath(path):
     if not isinstance(path, (list, tuple)):
-        path = filter(None, path.split('/'))
+        if path == '.':
+            path = []
+        else:
+            path = filter(None, path.split('/'))
     return path
+
+
+def NoSuchFileOrDirectory(path):
+    return IOError(2, 'No such file or directory', path)
+
+
+def IsADirectory(path):
+    return IOError(21, 'Is a directory', path)
+
+
+def NotADirectory(path):
+    return IOError(20, 'Not a directory', path)
+
+
+def FileExists(path):
+    return IOError(17, 'File exists', path)
