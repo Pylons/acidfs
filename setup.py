@@ -7,7 +7,7 @@ VERSION = '0.0'
 requires = [
     'transaction',
 ]
-tests_require = requires
+tests_require = requires + ['mock']
 
 if sys.version < '2.7':
     tests_require += 'unittest2'

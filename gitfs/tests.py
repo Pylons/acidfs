@@ -5,6 +5,7 @@ except ImportError:
     import unittest
 
 import contextlib
+import mock
 import os
 import shutil
 import subprocess
@@ -85,7 +86,7 @@ class OperationalTests(unittest.TestCase):
     def assertNoSuchFileOrDirectory(self, path):
         try:
             yield
-            raise AssertionError('IOError not raised')
+            raise AssertionError('IOError not raised') # pragma no cover
         except IOError, e:
             self.assertEqual(e.errno, 2)
             self.assertEqual(e.strerror, 'No such file or directory')
@@ -95,7 +96,7 @@ class OperationalTests(unittest.TestCase):
     def assertIsADirectory(self, path):
         try:
             yield
-            raise AssertionError('IOError not raised')
+            raise AssertionError('IOError not raised') # pragma no cover
         except IOError, e:
             self.assertEqual(e.errno, 21)
             self.assertEqual(e.strerror, 'Is a directory')
@@ -105,7 +106,7 @@ class OperationalTests(unittest.TestCase):
     def assertNotADirectory(self, path):
         try:
             yield
-            raise AssertionError('IOError not raised')
+            raise AssertionError('IOError not raised') # pragma no cover
         except IOError, e:
             self.assertEqual(e.errno, 20)
             self.assertEqual(e.strerror, 'Not a directory')
@@ -115,7 +116,7 @@ class OperationalTests(unittest.TestCase):
     def assertFileExists(self, path):
         try:
             yield
-            raise AssertionError('IOError not raised')
+            raise AssertionError('IOError not raised') # pragma no cover
         except IOError, e:
             self.assertEqual(e.errno, 17)
             self.assertEqual(e.strerror, 'File exists')
@@ -124,16 +125,20 @@ class OperationalTests(unittest.TestCase):
     def test_read_write_file(self):
         fs = self.fs
         with fs.open('foo', 'w') as f:
+            self.assertTrue(f.writable())
             print >> f, 'Hello'
-        with fs.open('foo') as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            with self.assertNoSuchFileOrDirectory('foo'):
+                fs.open('foo')
+        self.assertEqual(fs.open('foo').read(), 'Hello\n')
         actual_file = os.path.join(self.tmp, 'foo')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
         with fs.open('foo') as f:
+            self.assertTrue(f.readable())
             self.assertEqual(f.read(), 'Hello\n')
         with open(actual_file) as f:
             self.assertEqual(f.read(), 'Hello\n')
+        transaction.commit() # Nothing to commit
 
     def test_read_write_file_in_subfolder(self):
         fs = self.fs
@@ -200,3 +205,65 @@ class OperationalTests(unittest.TestCase):
         with self.assertFileExists('bar'):
             fs.mkdir('bar')
 
+    def test_commit_metadata(self):
+        tx = transaction.get()
+        tx.note("A test commit.")
+        tx.setUser('Fred Flintstone')
+        tx.setExtendedInfo('email', 'fred@bed.rock')
+        self.fs.open('foo', 'w').write('Howdy!')
+        transaction.commit()
+
+        output = subprocess.check_output(['git', 'log'], cwd=self.tmp)
+        self.assertIn('Author: Fred Flintstone <fred@bed.rock>', output)
+        self.assertIn('A test commit.', output)
+
+    def test_commit_metadata_extended_info_for_user(self):
+        tx = transaction.get()
+        tx.note("A test commit.")
+        tx.setExtendedInfo('user', 'Fred Flintstone')
+        tx.setExtendedInfo('email', 'fred@bed.rock')
+        self.fs.open('foo', 'w').write('Howdy!')
+        transaction.commit()
+
+        output = subprocess.check_output(['git', 'log'], cwd=self.tmp)
+        self.assertIn('Author: Fred Flintstone <fred@bed.rock>', output)
+        self.assertIn('A test commit.', output)
+
+    def test_modify_file(self):
+        fs = self.fs
+        with fs.open('foo', 'w') as f:
+            print >> f, "Howdy!"
+        transaction.commit()
+
+        path = os.path.join(self.tmp, 'foo')
+        with fs.open('foo', 'w') as f:
+            print >> f, "Hello!"
+            self.assertEqual(fs.open('foo').read(), 'Howdy!\n')
+        self.assertEqual(fs.open('foo').read(), 'Hello!\n')
+        self.assertEqual(open(path).read(), 'Howdy!\n')
+        transaction.commit()
+
+        self.assertEqual(open(path).read(), 'Hello!\n')
+
+    def test_error_writing_blob(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            with self.fs.open('foo', 'w') as f:
+                shutil.rmtree(os.path.join(self.tmp, '.git'))
+                print >> f, 'Howdy!'
+
+    def test_error_reading_blob(self):
+        self.fs.open('foo', 'w').write('a' * 1000)
+        with self.assertRaises(subprocess.CalledProcessError):
+            with self.fs.open('foo', 'r') as f:
+                shutil.rmtree(os.path.join(self.tmp, '.git'))
+                f.read()
+
+class PopenTests(unittest.TestCase):
+
+    @mock.patch('gitfs.subprocess.Popen')
+    def test_called_process_error(self, Popen):
+        from gitfs import popen
+        Popen.return_value.return_value.wait.return_value = 1
+        with self.assertRaises(subprocess.CalledProcessError):
+            with popen(['what', 'ever']):
+                pass

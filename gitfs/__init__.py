@@ -60,7 +60,6 @@ class GitFS(object):
                 raise NoSuchFileOrDirectory('/'.join(path))
             if isinstance(obj, TreeNode):
                 raise IsADirectory('/'.join(path))
-            assert isinstance(obj, Blob)
             return obj.open()
 
         elif mode == 'w':
@@ -354,7 +353,8 @@ class NewBlob(io.RawIOBase):
 
         self.proc = subprocess.Popen(
             ['git', 'hash-object', '-w', '--stdin'],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=db)
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, cwd=db)
 
     def write(self, b):
         return self.proc.stdin.write(b)
@@ -365,11 +365,11 @@ class NewBlob(io.RawIOBase):
             self.proc.stdin.close()
             oid = self.proc.stdout.read().strip()
             self.proc.stdout.close()
-            self.parent.contents[self.name] = ('blob', oid, None)
             retcode = self.proc.wait()
             if retcode != 0:
                 raise subprocess.CalledProcessError(
                     retcode, 'git hash-object -w --stdin')
+            self.parent.contents[self.name] = ('blob', oid, None)
 
     def writable(self):
         return True
@@ -379,6 +379,10 @@ class NewBlob(io.RawIOBase):
             return self.prev.open()
         raise NoSuchFileOrDirectory(object_path(self))
 
+    def find(self, path):
+        if not path:
+            return self
+
 
 class BlobStream(io.RawIOBase):
 
@@ -386,7 +390,7 @@ class BlobStream(io.RawIOBase):
         # XXX buffer?
         self.proc = subprocess.Popen(
             ['git', 'cat-file', 'blob', oid],
-            stdout=subprocess.PIPE, cwd=db)
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=db)
         self.oid = oid
 
     def readable(self):
@@ -399,6 +403,7 @@ class BlobStream(io.RawIOBase):
         if not self.closed:
             super(BlobStream, self).close()
             self.proc.stdout.close()
+            self.proc.stderr.close()
             retcode = self.proc.wait()
             if retcode != 0:
                 raise subprocess.CalledProcessError(
@@ -426,7 +431,7 @@ def popen(args, **kw):
         if stream is not None:
             stream.close()
     retcode = proc.wait()
-    if  retcode != 0:
+    if retcode != 0:
         raise subprocess.CalledProcessError(retcode, repr(args))
 
 
