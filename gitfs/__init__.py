@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import transaction
+import weakref
 
 log = logging.getLogger(__name__)
 
@@ -292,7 +293,7 @@ class TreeNode(object):
         obj = NewBlob(self.db, prev)
         obj.parent = self
         obj.name = name
-        self.contents[name] = ('blob', None, obj)
+        self.contents[name] = ('blob', None, weakref.proxy(obj))
         self.set_dirty()
         return obj
 
@@ -315,7 +316,7 @@ class TreeNode(object):
             if not obj:
                 continue # Nothing to do
             if isinstance(obj, NewBlob):
-                obj.close()
+                raise ValueError("Cannot commit transaction with open files.")
             elif type == 'tree' and obj.dirty:
                 new_oid = obj.save()
                 self.contents[name] = ('tree', new_oid, None)

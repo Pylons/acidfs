@@ -75,6 +75,7 @@ class OperationalTests(unittest.TestCase):
         from gitfs import GitFS as test_class
         self.tmp = tempfile.mkdtemp('.gitstore-test')
         self.fs = test_class(self.tmp)
+        transaction.abort()
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -169,8 +170,7 @@ class OperationalTests(unittest.TestCase):
         with self.assertIsADirectory('foo'):
             fs.open('foo', 'w')
 
-        with fs.open('bar', 'w') as f:
-            print >> f, 'Howdy!'
+        fs.open('bar', 'w').write('Howdy')
 
         with self.assertNotADirectory('bar/foo'):
             fs.open('bar/foo', 'w')
@@ -178,14 +178,20 @@ class OperationalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fs.open('foo', 'wtf')
 
+        with fs.open('bar', 'w') as f:
+            print >> f, 'Howdy!'
+            with self.assertRaises(ValueError) as cm:
+                transaction.commit()
+            self.assertEqual(str(cm.exception),
+                             "Cannot commit transaction with open files.")
+
     def test_mkdir_edge_cases(self):
         fs = self.fs
 
         with self.assertNoSuchFileOrDirectory('foo/bar'):
             fs.mkdir('foo/bar')
 
-        with fs.open('foo', 'w') as f:
-            print >> f, 'Howdy!'
+        fs.open('foo', 'w').write('Howdy!')
 
         with self.assertNotADirectory('foo/bar'):
             fs.mkdir('foo/bar')
