@@ -3,6 +3,7 @@ import fcntl
 import io
 import logging
 import os
+import shutil
 import subprocess
 import transaction
 import weakref
@@ -55,6 +56,13 @@ class GitFS(object):
         session = self._session()
         path = _mkpath(path)
 
+        mode = mode.replace('b', '')
+        if mode == 'a':
+            mode = 'w'
+            append = True
+        else:
+            append = False
+
         if mode == 'r':
             obj = session.find(path)
             if not obj:
@@ -76,8 +84,10 @@ class GitFS(object):
             prev = obj.get(name)
             if isinstance(prev, _TreeNode):
                 raise _IsADirectory('/'.join(path))
-            assert isinstance(prev, (_Blob, type(None)))
-            return obj.new_blob(name, prev)
+            blob = obj.new_blob(name, prev)
+            if append and prev:
+                shutil.copyfileobj(prev.open(), blob)
+            return blob
 
         raise ValueError("Bad mode: %s" % mode)
 

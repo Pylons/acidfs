@@ -268,6 +268,23 @@ class OperationalTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             transaction.commit()
 
+    def test_append(self):
+        fs = self.fs
+        fs.open('foo', 'w').write('Hello!\n')
+        transaction.commit()
+
+        path = os.path.join(self.tmp, 'foo')
+        with fs.open('foo', 'a') as f:
+            print >> f, 'Daddy!'
+            self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\n')
+            self.assertEqual(open(path).read(), 'Hello!\n')
+        self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\nDaddy!\n')
+        self.assertEqual(open(path).read(), 'Hello!\n')
+
+        transaction.commit()
+        self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\nDaddy!\n')
+        self.assertEqual(open(path).read(), 'Hello!\nDaddy!\n')
+
 
 class PopenTests(unittest.TestCase):
 
