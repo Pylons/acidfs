@@ -5,14 +5,11 @@ except ImportError:
     import unittest
 
 import contextlib
-import fcntl
 import mock
 import os
 import shutil
-import sys
 import subprocess
 import tempfile
-import time
 import transaction
 
 
@@ -276,8 +273,8 @@ class PopenTests(unittest.TestCase):
 
     @mock.patch('gitfs.subprocess.Popen')
     def test_called_process_error(self, Popen):
-        from gitfs import popen
+        from gitfs import _popen
         Popen.return_value.return_value.wait.return_value = 1
         with self.assertRaises(subprocess.CalledProcessError):
-            with popen(['what', 'ever']):
+            with _popen(['what', 'ever']):
                 pass

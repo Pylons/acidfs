@@ -48,56 +48,60 @@ class GitFS(object):
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = Session(self.db, self.ref)
+            self.session = _Session(self.db, self.ref)
         return self.session
 
     def open(self, path, mode='r'):
         session = self._session()
-        path = mkpath(path)
+        path = _mkpath(path)
 
         if mode == 'r':
             obj = session.find(path)
             if not obj:
-                raise NoSuchFileOrDirectory('/'.join(path))
-            if isinstance(obj, TreeNode):
-                raise IsADirectory('/'.join(path))
+                raise _NoSuchFileOrDirectory('/'.join(path))
+            if isinstance(obj, _TreeNode):
+                raise _IsADirectory('/'.join(path))
             return obj.open()
 
         elif mode == 'w':
             if not path:
-                raise IsADirectory('')
+                raise _IsADirectory('')
             name = path[-1]
             dirpath = path[:-1]
             obj = session.find(dirpath)
             if not obj:
-                raise NoSuchFileOrDirectory('/'.join(path))
-            if not isinstance(obj, TreeNode):
-                raise NotADirectory('/'.join(path))
+                raise _NoSuchFileOrDirectory('/'.join(path))
+            if not isinstance(obj, _TreeNode):
+                raise _NotADirectory('/'.join(path))
             prev = obj.get(name)
-            if isinstance(prev, TreeNode):
-                raise IsADirectory('/'.join(path))
-            assert isinstance(prev, (Blob, type(None)))
+            if isinstance(prev, _TreeNode):
+                raise _IsADirectory('/'.join(path))
+            assert isinstance(prev, (_Blob, type(None)))
             return obj.new_blob(name, prev)
 
         raise ValueError("Bad mode: %s" % mode)
 
     def mkdir(self, path):
         session = self._session()
-        path = mkpath(path)
+        path = _mkpath(path)
         name = path[-1]
 
         parent = session.find(path[:-1])
         if not parent:
-            raise NoSuchFileOrDirectory('/'.join(path))
-        if not isinstance(parent, TreeNode):
-            raise NotADirectory('/'.join(path))
+            raise _NoSuchFileOrDirectory('/'.join(path))
+        if not isinstance(parent, _TreeNode):
+            raise _NotADirectory('/'.join(path))
         if name in parent.contents:
-            raise FileExists('/'.join(path))
+            raise _FileExists('/'.join(path))
 
         parent.new_tree(name)
 
 
-class Session(object):
+class ConflictError(Exception):
+    pass
+
+
+class _Session(object):
     closed = False
     joined = False
     lockfd = None
@@ -118,11 +122,11 @@ class Session(object):
             else:
                 log.info("New repository with no previous commits.")
                 self.prev_commit = None
-                self.tree = TreeNode(db)
+                self.tree = _TreeNode(db)
                 return
         else:
             self.prev_commit = open(reffile).read().strip()
-            self.tree = TreeNode.read(db, '%s^{tree}' % self.prev_commit)
+            self.tree = _TreeNode.read(db, '%s^{tree}' % self.prev_commit)
 
 
     def find(self, path):
@@ -251,7 +255,7 @@ class Session(object):
             self.lockfd = None
 
 
-class TreeNode(object):
+class _TreeNode(object):
     parent = None
     name = None
     dirty = True
@@ -260,7 +264,7 @@ class TreeNode(object):
     def read(cls, db, oid):
         node = cls(db)
         contents = node.contents
-        with popen(['git', 'ls-tree', oid],
+        with _popen(['git', 'ls-tree', oid],
                    stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = line.split()
@@ -282,9 +286,9 @@ class TreeNode(object):
         assert type in ('tree', 'blob')
         if not obj:
             if type == 'tree':
-                obj = TreeNode.read(self.db, oid)
+                obj = _TreeNode.read(self.db, oid)
             else:
-                obj = Blob(self.db, oid)
+                obj = _Blob(self.db, oid)
             obj.parent = self
             obj.name = name
             contents[name] = (type, oid, obj)
@@ -298,7 +302,7 @@ class TreeNode(object):
             return obj.find(path[1:])
 
     def new_blob(self, name, prev):
-        obj = NewBlob(self.db, prev)
+        obj = _NewBlob(self.db, prev)
         obj.parent = self
         obj.name = name
         self.contents[name] = ('blob', None, weakref.proxy(obj))
@@ -306,7 +310,7 @@ class TreeNode(object):
         return obj
 
     def new_tree(self, name):
-        node = TreeNode(self.db)
+        node = _TreeNode(self.db)
         node.parent = self
         node.name = name
         self.contents[name] = ('tree', None, node)
@@ -323,14 +327,14 @@ class TreeNode(object):
         for name, (type, oid, obj) in list(self.contents.items()):
             if not obj:
                 continue # Nothing to do
-            if isinstance(obj, NewBlob):
+            if isinstance(obj, _NewBlob):
                 raise ValueError("Cannot commit transaction with open files.")
             elif type == 'tree' and obj.dirty:
                 new_oid = obj.save()
                 self.contents[name] = ('tree', new_oid, None)
 
         # Save tree object out to database
-        with popen(['git', 'mktree'], cwd=self.db,
+        with _popen(['git', 'mktree'], cwd=self.db,
                    stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
             for name, (type, oid, obj) in self.contents.items():
                 mode = '100644' if type == 'blob' else '040000'
@@ -340,21 +344,21 @@ class TreeNode(object):
         return oid
 
 
-class Blob(object):
+class _Blob(object):
 
     def __init__(self, db, oid):
         self.db = db
         self.oid = oid
 
     def open(self):
-        return BlobStream(self.db, self.oid)
+        return _BlobStream(self.db, self.oid)
 
     def find(self, path):
         if not path:
             return self
 
 
-class NewBlob(io.RawIOBase):
+class _NewBlob(io.RawIOBase):
 
     def __init__(self, db, prev):
         self.db = db
@@ -370,7 +374,7 @@ class NewBlob(io.RawIOBase):
 
     def close(self):
         if not self.closed:
-            super(NewBlob, self).close()
+            super(_NewBlob, self).close()
             self.proc.stdin.close()
             oid = self.proc.stdout.read().strip()
             self.proc.stdout.close()
@@ -386,14 +390,14 @@ class NewBlob(io.RawIOBase):
     def open(self):
         if self.prev:
             return self.prev.open()
-        raise NoSuchFileOrDirectory(object_path(self))
+        raise _NoSuchFileOrDirectory(_object_path(self))
 
     def find(self, path):
         if not path:
             return self
 
 
-class BlobStream(io.RawIOBase):
+class _BlobStream(io.RawIOBase):
 
     def __init__(self, db, oid):
         # XXX buffer?
@@ -410,7 +414,7 @@ class BlobStream(io.RawIOBase):
 
     def close(self):
         if not self.closed:
-            super(BlobStream, self).close()
+            super(_BlobStream, self).close()
             self.proc.stdout.close()
             self.proc.stderr.close()
             retcode = self.proc.wait()
@@ -419,7 +423,7 @@ class BlobStream(io.RawIOBase):
                     retcode, 'git cat-file blob %s' % self.oid)
 
 
-def object_path(obj):
+def _object_path(obj):
     path = []
     node = obj
     while node.parent:
@@ -428,12 +432,8 @@ def object_path(obj):
     return '/'.join(path)
 
 
-class ConflictError(Exception):
-    pass
-
-
 @contextlib.contextmanager
-def popen(args, **kw):
+def _popen(args, **kw):
     proc = subprocess.Popen(args, **kw)
     yield proc
     for stream in (proc.stdin, proc.stdout, proc.stderr):
@@ -444,7 +444,7 @@ def popen(args, **kw):
         raise subprocess.CalledProcessError(retcode, repr(args))
 
 
-def mkpath(path):
+def _mkpath(path):
     if not isinstance(path, (list, tuple)):
         if path == '.':
             path = []
@@ -453,17 +453,17 @@ def mkpath(path):
     return path
 
 
-def NoSuchFileOrDirectory(path):
+def _NoSuchFileOrDirectory(path):
     return IOError(2, 'No such file or directory', path)
 
 
-def IsADirectory(path):
+def _IsADirectory(path):
     return IOError(21, 'Is a directory', path)
 
 
-def NotADirectory(path):
+def _NotADirectory(path):
     return IOError(20, 'Not a directory', path)
 
 
-def FileExists(path):
+def _FileExists(path):
     return IOError(17, 'File exists', path)
