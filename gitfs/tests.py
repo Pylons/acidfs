@@ -429,6 +429,23 @@ class OperationalTests(unittest.TestCase):
         self.assertFalse(pexists(j(self.tmp, 'one', 'a')))
         self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'a')))
 
+    def test_listdir(self):
+        fs = self.fs
+        fs.mkdirs('one/a')
+        fs.mkdir('two')
+        fs.open('three', 'w').write('Hello!')
+
+        with self.assertNoSuchFileOrDirectory('bar'):
+            fs.listdir('bar')
+        with self.assertNotADirectory('three'):
+            fs.listdir('three')
+        self.assertEqual(sorted(fs.listdir()), ['one', 'three', 'two'])
+        self.assertEqual(fs.listdir('/one'), ['a'])
+
+        transaction.commit()
+        self.assertEqual(sorted(fs.listdir()), ['one', 'three', 'two'])
+        self.assertEqual(fs.listdir('/one'), ['a'])
+
 
 class PopenTests(unittest.TestCase):
 

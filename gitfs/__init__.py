@@ -91,6 +91,15 @@ class GitFS(object):
 
         raise ValueError("Bad mode: %s" % mode)
 
+    def listdir(self, path=''):
+        session = self._session()
+        obj = session.find(_mkpath(path))
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        if not isinstance(obj, _TreeNode):
+            raise _NotADirectory(path)
+        return list(obj.contents.keys())
+
     def mkdir(self, path):
         session = self._session()
         parsed = _mkpath(path)
