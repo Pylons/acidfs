@@ -106,6 +106,18 @@ class GitFS(object):
 
         parent.new_tree(name)
 
+    def mkdirs(self, path):
+        session = self._session()
+        parsed = _mkpath(path)
+        node = session.tree
+        for name in parsed:
+            next_node = node.get(name)
+            if not next_node:
+                next_node = node.new_tree(name)
+            elif not isinstance(next_node, _TreeNode):
+                raise _NotADirectory(path)
+            node = next_node
+
     def rm(self, path):
         session = self._session()
         parsed = _mkpath(path)
@@ -131,6 +143,18 @@ class GitFS(object):
 
         obj.parent.remove(obj.name)
 
+    def rmtree(self, path):
+        session = self._session()
+        parsed = _mkpath(path)
+
+        obj = session.find(parsed)
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        if not isinstance(obj, _TreeNode):
+            raise _NotADirectory(path)
+
+        obj.parent.remove(obj.name)
+
     def exists(self, path):
         session = self._session()
         return bool(session.find(_mkpath(path)))
@@ -138,6 +162,15 @@ class GitFS(object):
     def isdir(self, path):
         session = self._session()
         return isinstance(session.find(_mkpath(path)), _TreeNode)
+
+    def empty(self, path):
+        session = self._session()
+        obj = session.find(_mkpath(path))
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        if not isinstance(obj, _TreeNode):
+            raise _NotADirectory(path)
+        return obj.empty()
 
 
 class ConflictError(Exception):
@@ -358,6 +391,7 @@ class _TreeNode(object):
         node.name = name
         self.contents[name] = ('tree', None, node)
         self.set_dirty()
+        return node
 
     def remove(self, name):
         del self.contents[name]

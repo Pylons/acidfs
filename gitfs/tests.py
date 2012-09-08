@@ -341,6 +341,41 @@ class OperationalTests(unittest.TestCase):
         self.assertFalse(fs.exists('foo'))
         self.assertFalse(os.path.exists(path))
 
+    def test_rmtree(self):
+        fs = self.fs
+        fs.mkdirs('foo/bar')
+        fs.open('foo/bar/baz', 'w').write('Hello\n')
+        with self.assertNotADirectory('foo/bar/baz/boz'):
+            fs.mkdirs('foo/bar/baz/boz')
+        transaction.commit()
+
+        path = os.path.join(self.tmp, 'foo', 'bar', 'baz')
+        with self.assertNotADirectory('foo/bar/baz'):
+            fs.rmtree('foo/bar/baz')
+        with self.assertNoSuchFileOrDirectory('bar'):
+            fs.rmtree('bar')
+        self.assertTrue(fs.exists('foo/bar'))
+        self.assertTrue(fs.exists('foo'))
+        self.assertFalse(fs.empty('/'))
+        fs.rmtree('foo')
+        self.assertFalse(fs.exists('foo/bar'))
+        self.assertFalse(fs.exists('foo'))
+        self.assertTrue(fs.empty('/'))
+        self.assertTrue(os.path.exists(path))
+
+        transaction.commit()
+        self.assertFalse(os.path.exists(path))
+
+    def test_empty(self):
+        fs = self.fs
+        self.assertTrue(fs.empty('/'))
+        fs.open('foo', 'w').write('Hello!')
+        self.assertFalse(fs.empty('/'))
+        with self.assertNotADirectory('foo'):
+            fs.empty('foo')
+        with self.assertNoSuchFileOrDirectory('foo/bar'):
+            fs.empty('foo/bar')
+
 
 class PopenTests(unittest.TestCase):
 
