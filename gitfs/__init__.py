@@ -117,6 +117,20 @@ class GitFS(object):
             raise _IsADirectory(path)
         obj.parent.remove(obj.name)
 
+    def rmdir(self, path):
+        session = self._session()
+        parsed = _mkpath(path)
+
+        obj = session.find(parsed)
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        if not isinstance(obj, _TreeNode):
+            raise _NotADirectory(path)
+        if not obj.empty():
+            raise _DirectoryNotEmpty(path)
+
+        obj.parent.remove(obj.name)
+
     def exists(self, path):
         session = self._session()
         return bool(session.find(_mkpath(path)))
@@ -376,6 +390,9 @@ class _TreeNode(object):
             oid = proc.stdout.read().strip()
         return oid
 
+    def empty(self):
+        return not self.contents
+
 
 class _Blob(object):
 
@@ -500,3 +517,7 @@ def _NotADirectory(path):
 
 def _FileExists(path):
     return IOError(17, 'File exists', path)
+
+
+def _DirectoryNotEmpty(path):
+    return IOError(39, 'Directory not empty', path)

@@ -122,6 +122,16 @@ class OperationalTests(unittest.TestCase):
             self.assertEqual(e.strerror, 'File exists')
             self.assertEqual(e.filename, path)
 
+    @contextlib.contextmanager
+    def assertDirectoryNotEmpty(self, path):
+        try:
+            yield
+            raise AssertionError('IOError not raised') # pragma no cover
+        except IOError, e:
+            self.assertEqual(e.errno, 39)
+            self.assertEqual(e.strerror, 'Directory not empty')
+            self.assertEqual(e.filename, path)
+
     def test_read_write_file(self):
         fs = self.fs
         with fs.open('foo', 'w') as f:
@@ -308,6 +318,28 @@ class OperationalTests(unittest.TestCase):
             fs.rm('foo')
         with self.assertIsADirectory('.'):
             fs.rm('.')
+
+    def test_rmdir(self):
+        fs = self.fs
+        fs.mkdir('foo')
+        fs.open('foo/bar', 'w').write('Hello\n')
+        transaction.commit()
+
+        path = os.path.join(self.tmp, 'foo')
+        with self.assertNotADirectory('foo/bar'):
+            fs.rmdir('foo/bar')
+        with self.assertDirectoryNotEmpty('foo'):
+            fs.rmdir('foo')
+        with self.assertNoSuchFileOrDirectory('bar'):
+            fs.rmdir('bar')
+        fs.rm('foo/bar')
+        fs.rmdir('foo')
+        self.assertFalse(fs.exists('foo'))
+        self.assertTrue(os.path.exists(path))
+
+        transaction.commit()
+        self.assertFalse(fs.exists('foo'))
+        self.assertFalse(os.path.exists(path))
 
 
 class PopenTests(unittest.TestCase):
