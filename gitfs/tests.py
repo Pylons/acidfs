@@ -376,6 +376,59 @@ class OperationalTests(unittest.TestCase):
         with self.assertNoSuchFileOrDirectory('foo/bar'):
             fs.empty('foo/bar')
 
+    def test_mv(self):
+        fs = self.fs
+        fs.mkdirs('one/a')
+        fs.mkdirs('one/b')
+        fs.open('one/a/foo', 'w').write('Hello!')
+        fs.open('one/b/foo', 'w').write('Howdy!')
+        transaction.commit()
+
+        with self.assertNoSuchFileOrDirectory('/'):
+            fs.mv('/', 'one')
+        with self.assertNoSuchFileOrDirectory('bar'):
+            fs.mv('bar', 'one')
+        with self.assertNoSuchFileOrDirectory('bar/baz'):
+            fs.mv('one', 'bar/baz')
+
+        pexists = os.path.exists
+        j = os.path.join
+        fs.mv('one/a/foo', 'one/a/bar')
+        self.assertFalse(fs.exists('one/a/foo'))
+        self.assertTrue(fs.exists('one/a/bar'))
+        self.assertTrue(pexists(j(self.tmp, 'one', 'a', 'foo')))
+        self.assertFalse(pexists(j(self.tmp, 'one', 'a', 'bar')))
+
+        transaction.commit()
+        self.assertFalse(fs.exists('one/a/foo'))
+        self.assertTrue(fs.exists('one/a/bar'))
+        self.assertFalse(pexists(j(self.tmp, 'one', 'a', 'foo')))
+        self.assertTrue(pexists(j(self.tmp, 'one', 'a', 'bar')))
+
+        fs.mv('one/b/foo', 'one/a/bar')
+        self.assertFalse(fs.exists('one/b/foo'))
+        self.assertEqual(fs.open('one/a/bar').read(), 'Howdy!')
+        self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'foo')))
+        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), 'Hello!')
+
+        transaction.commit()
+        self.assertFalse(fs.exists('one/b/foo'))
+        self.assertEqual(fs.open('one/a/bar').read(), 'Howdy!')
+        self.assertFalse(pexists(j(self.tmp, 'one', 'b', 'foo')))
+        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), 'Howdy!')
+
+        fs.mv('one/a', 'one/b')
+        self.assertFalse(fs.exists('one/a'))
+        self.assertTrue(fs.exists('one/b/a'))
+        self.assertTrue(pexists(j(self.tmp, 'one', 'a')))
+        self.assertFalse(pexists(j(self.tmp, 'one', 'b', 'a')))
+
+        transaction.commit()
+        self.assertFalse(fs.exists('one/a'))
+        self.assertTrue(fs.exists('one/b/a'))
+        self.assertFalse(pexists(j(self.tmp, 'one', 'a')))
+        self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'a')))
+
 
 class PopenTests(unittest.TestCase):
 

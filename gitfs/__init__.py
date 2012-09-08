@@ -155,6 +155,31 @@ class GitFS(object):
 
         obj.parent.remove(obj.name)
 
+    def mv(self, src, dst):
+        session = self._session()
+        spath = _mkpath(src)
+        if not spath:
+            raise _NoSuchFileOrDirectory(src)
+        sname = spath[-1]
+        sfolder = session.find(spath[:-1])
+        if not sfolder or not sname in sfolder:
+            raise _NoSuchFileOrDirectory(src)
+
+        dpath = _mkpath(dst)
+        dobj = session.find(dpath)
+        if not dobj:
+            if dpath:
+                dname = dpath[-1]
+                dfolder = session.find(dpath[:-1])
+                if dfolder:
+                    dfolder.set(dname, sfolder.remove(sname))
+                    return
+            raise _NoSuchFileOrDirectory(dst)
+        if isinstance(dobj, _TreeNode):
+            dobj.set(sname, sfolder.remove(sname))
+        else:
+            dobj.parent.set(dobj.name, sfolder.remove(sname))
+
     def exists(self, path):
         session = self._session()
         return bool(session.find(_mkpath(path)))
@@ -394,7 +419,12 @@ class _TreeNode(object):
         return node
 
     def remove(self, name):
-        del self.contents[name]
+        entry = self.contents.pop(name)
+        self.set_dirty()
+        return entry
+
+    def set(self, name, entry):
+        self.contents[name] = entry
         self.set_dirty()
 
     def set_dirty(self):
@@ -426,6 +456,9 @@ class _TreeNode(object):
 
     def empty(self):
         return not self.contents
+
+    def __contains__(self, name):
+        return name in self.contents
 
 
 class _Blob(object):
