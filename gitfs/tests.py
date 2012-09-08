@@ -142,7 +142,9 @@ class OperationalTests(unittest.TestCase):
 
     def test_read_write_file_in_subfolder(self):
         fs = self.fs
+        self.assertFalse(fs.isdir('foo'))
         fs.mkdir('foo')
+        self.assertTrue(fs.isdir('foo'))
         with fs.open('foo/bar', 'w') as f:
             print >> f, 'Hello'
         with fs.open('foo/bar') as f:
@@ -150,6 +152,8 @@ class OperationalTests(unittest.TestCase):
         actual_file = os.path.join(self.tmp, 'foo', 'bar')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
+        self.assertTrue(fs.isdir('foo'))
+        self.assertFalse(fs.isdir('foo/bar'))
         with fs.open('foo/bar') as f:
             self.assertEqual(f.read(), 'Hello\n')
         with open(actual_file) as f:
@@ -164,10 +168,10 @@ class OperationalTests(unittest.TestCase):
         with self.assertNoSuchFileOrDirectory('foo/bar'):
             fs.open('foo/bar', 'w')
 
-        with self.assertIsADirectory(''):
+        with self.assertIsADirectory('.'):
             fs.open('.')
 
-        with self.assertIsADirectory(''):
+        with self.assertIsADirectory('.'):
             fs.open('.', 'w')
 
         fs.mkdir('foo')
@@ -284,6 +288,26 @@ class OperationalTests(unittest.TestCase):
         transaction.commit()
         self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\nDaddy!\n')
         self.assertEqual(open(path).read(), 'Hello!\nDaddy!\n')
+
+    def test_rm(self):
+        fs = self.fs
+        fs.open('foo', 'w').write('Hello\n')
+        transaction.commit()
+
+        path = os.path.join(self.tmp, 'foo')
+        self.assertTrue(fs.exists('foo'))
+        fs.rm('foo')
+        self.assertFalse(fs.exists('foo'))
+        self.assertTrue(os.path.exists(path))
+
+        transaction.commit()
+        self.assertFalse(fs.exists('foo'))
+        self.assertFalse(os.path.exists(path))
+
+        with self.assertNoSuchFileOrDirectory('foo'):
+            fs.rm('foo')
+        with self.assertIsADirectory('.'):
+            fs.rm('.')
 
 
 class PopenTests(unittest.TestCase):

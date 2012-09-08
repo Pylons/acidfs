@@ -54,7 +54,7 @@ class GitFS(object):
 
     def open(self, path, mode='r'):
         session = self._session()
-        path = _mkpath(path)
+        parsed = _mkpath(path)
 
         mode = mode.replace('b', '')
         if mode == 'a':
@@ -64,26 +64,26 @@ class GitFS(object):
             append = False
 
         if mode == 'r':
-            obj = session.find(path)
+            obj = session.find(parsed)
             if not obj:
-                raise _NoSuchFileOrDirectory('/'.join(path))
+                raise _NoSuchFileOrDirectory(path)
             if isinstance(obj, _TreeNode):
-                raise _IsADirectory('/'.join(path))
+                raise _IsADirectory(path)
             return obj.open()
 
         elif mode == 'w':
-            if not path:
-                raise _IsADirectory('')
-            name = path[-1]
-            dirpath = path[:-1]
+            if not parsed:
+                raise _IsADirectory(path)
+            name = parsed[-1]
+            dirpath = parsed[:-1]
             obj = session.find(dirpath)
             if not obj:
-                raise _NoSuchFileOrDirectory('/'.join(path))
+                raise _NoSuchFileOrDirectory(path)
             if not isinstance(obj, _TreeNode):
-                raise _NotADirectory('/'.join(path))
+                raise _NotADirectory(path)
             prev = obj.get(name)
             if isinstance(prev, _TreeNode):
-                raise _IsADirectory('/'.join(path))
+                raise _IsADirectory(path)
             blob = obj.new_blob(name, prev)
             if append and prev:
                 shutil.copyfileobj(prev.open(), blob)
@@ -93,18 +93,37 @@ class GitFS(object):
 
     def mkdir(self, path):
         session = self._session()
-        path = _mkpath(path)
-        name = path[-1]
+        parsed = _mkpath(path)
+        name = parsed[-1]
 
-        parent = session.find(path[:-1])
+        parent = session.find(parsed[:-1])
         if not parent:
-            raise _NoSuchFileOrDirectory('/'.join(path))
+            raise _NoSuchFileOrDirectory(path)
         if not isinstance(parent, _TreeNode):
-            raise _NotADirectory('/'.join(path))
+            raise _NotADirectory(path)
         if name in parent.contents:
-            raise _FileExists('/'.join(path))
+            raise _FileExists(path)
 
         parent.new_tree(name)
+
+    def rm(self, path):
+        session = self._session()
+        parsed = _mkpath(path)
+
+        obj = session.find(parsed)
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        if isinstance(obj, _TreeNode):
+            raise _IsADirectory(path)
+        obj.parent.remove(obj.name)
+
+    def exists(self, path):
+        session = self._session()
+        return bool(session.find(_mkpath(path)))
+
+    def isdir(self, path):
+        session = self._session()
+        return isinstance(session.find(_mkpath(path)), _TreeNode)
 
 
 class ConflictError(Exception):
@@ -324,6 +343,10 @@ class _TreeNode(object):
         node.parent = self
         node.name = name
         self.contents[name] = ('tree', None, node)
+        self.set_dirty()
+
+    def remove(self, name):
+        del self.contents[name]
         self.set_dirty()
 
     def set_dirty(self):
