@@ -446,6 +446,37 @@ class OperationalTests(unittest.TestCase):
         self.assertEqual(sorted(fs.listdir()), ['one', 'three', 'two'])
         self.assertEqual(fs.listdir('/one'), ['a'])
 
+    def test_chdir(self):
+        fs = self.fs
+
+        fs.mkdirs('one/a')
+        fs.mkdir('two')
+        fs.open('three', 'w').write('Hello!')
+        fs.open('two/three', 'w').write('Haha!')
+
+        self.assertEqual(fs.cwd(), '/')
+        self.assertEqual(sorted(fs.listdir()), ['one', 'three', 'two'])
+
+        with self.assertNoSuchFileOrDirectory('foo'):
+            fs.chdir('foo')
+
+        fs.chdir('one')
+        self.assertEqual(fs.cwd(), '/one')
+        self.assertEqual(fs.listdir(), ['a'])
+
+        with self.assertNotADirectory('/three'):
+            with fs.cd('/three'):
+                pass # pragma no cover
+
+        with fs.cd('/two'):
+            self.assertEqual(fs.cwd(), '/two')
+            self.assertEqual(fs.listdir(), ['three'])
+            self.assertEqual(fs.open('three').read(), 'Haha!')
+            self.assertEqual(fs.open('/three').read(), 'Hello!')
+
+        self.assertEqual(fs.cwd(), '/one')
+        self.assertEqual(fs.listdir(), ['a'])
+
 
 class PopenTests(unittest.TestCase):
 

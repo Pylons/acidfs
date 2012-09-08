@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 
 class GitFS(object):
     session = None
+    _cwd = ()
 
     def __init__(self, path, branch=None, create=True, bare=False):
         db = os.path.join(path, '.git')
@@ -52,9 +53,38 @@ class GitFS(object):
             self.session = _Session(self.db, self.ref)
         return self.session
 
+    def _mkpath(self, path):
+        if path == '.':
+            parsed = []
+        else:
+            parsed = filter(None, path.split('/'))
+        if not path.startswith('/'):
+            parsed = type(parsed)(self._cwd) + parsed
+        return parsed
+
+    def cwd(self):
+        return '/' + '/'.join(self._cwd)
+
+    def chdir(self, path):
+        session = self._session()
+        parsed = self._mkpath(path)
+        obj = session.find(parsed)
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        if not isinstance(obj, _TreeNode):
+            raise _NotADirectory(path)
+        self._cwd = parsed
+
+    @contextlib.contextmanager
+    def cd(self, path):
+        prev = self._cwd
+        self.chdir(path)
+        yield
+        self._cwd = prev
+
     def open(self, path, mode='r'):
         session = self._session()
-        parsed = _mkpath(path)
+        parsed = self._mkpath(path)
 
         mode = mode.replace('b', '')
         if mode == 'a':
@@ -93,7 +123,7 @@ class GitFS(object):
 
     def listdir(self, path=''):
         session = self._session()
-        obj = session.find(_mkpath(path))
+        obj = session.find(self._mkpath(path))
         if not obj:
             raise _NoSuchFileOrDirectory(path)
         if not isinstance(obj, _TreeNode):
@@ -102,7 +132,7 @@ class GitFS(object):
 
     def mkdir(self, path):
         session = self._session()
-        parsed = _mkpath(path)
+        parsed = self._mkpath(path)
         name = parsed[-1]
 
         parent = session.find(parsed[:-1])
@@ -117,7 +147,7 @@ class GitFS(object):
 
     def mkdirs(self, path):
         session = self._session()
-        parsed = _mkpath(path)
+        parsed = self._mkpath(path)
         node = session.tree
         for name in parsed:
             next_node = node.get(name)
@@ -129,7 +159,7 @@ class GitFS(object):
 
     def rm(self, path):
         session = self._session()
-        parsed = _mkpath(path)
+        parsed = self._mkpath(path)
 
         obj = session.find(parsed)
         if not obj:
@@ -140,7 +170,7 @@ class GitFS(object):
 
     def rmdir(self, path):
         session = self._session()
-        parsed = _mkpath(path)
+        parsed = self._mkpath(path)
 
         obj = session.find(parsed)
         if not obj:
@@ -154,7 +184,7 @@ class GitFS(object):
 
     def rmtree(self, path):
         session = self._session()
-        parsed = _mkpath(path)
+        parsed = self._mkpath(path)
 
         obj = session.find(parsed)
         if not obj:
@@ -166,7 +196,7 @@ class GitFS(object):
 
     def mv(self, src, dst):
         session = self._session()
-        spath = _mkpath(src)
+        spath = self._mkpath(src)
         if not spath:
             raise _NoSuchFileOrDirectory(src)
         sname = spath[-1]
@@ -174,7 +204,7 @@ class GitFS(object):
         if not sfolder or not sname in sfolder:
             raise _NoSuchFileOrDirectory(src)
 
-        dpath = _mkpath(dst)
+        dpath = self._mkpath(dst)
         dobj = session.find(dpath)
         if not dobj:
             if dpath:
@@ -191,15 +221,15 @@ class GitFS(object):
 
     def exists(self, path):
         session = self._session()
-        return bool(session.find(_mkpath(path)))
+        return bool(session.find(self._mkpath(path)))
 
     def isdir(self, path):
         session = self._session()
-        return isinstance(session.find(_mkpath(path)), _TreeNode)
+        return isinstance(session.find(self._mkpath(path)), _TreeNode)
 
     def empty(self, path):
         session = self._session()
-        obj = session.find(_mkpath(path))
+        obj = session.find(self._mkpath(path))
         if not obj:
             raise _NoSuchFileOrDirectory(path)
         if not isinstance(obj, _TreeNode):
@@ -569,14 +599,6 @@ def _popen(args, **kw):
     if retcode != 0:
         raise subprocess.CalledProcessError(retcode, repr(args))
 
-
-def _mkpath(path):
-    if not isinstance(path, (list, tuple)):
-        if path == '.':
-            path = []
-        else:
-            path = filter(None, path.split('/'))
-    return path
 
 
 def _NoSuchFileOrDirectory(path):
