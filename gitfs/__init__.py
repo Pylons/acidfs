@@ -12,6 +12,36 @@ log = logging.getLogger(__name__)
 
 
 class GitFS(object):
+    """
+    Exposes a view of a filesystem with ACID semantics usable via the
+    `transaction <http://pypi.python.org/pypi/transaction>`_ package.  The
+    filesystem is backed by a `Git <http://git-scm.com/>`_ repository.
+
+    Constructor Arguments
+
+    ``path``
+
+       The path in the real, local fileystem of the repository.
+
+    ``branch``
+
+       Name of the branch in the Git repository to use.  If omitted, the
+       current HEAD is used.  If omitted, the repository cannot be in a
+       detached HEAD state.
+
+    ``create``
+
+       If there is not Git repository in the indicated directory, should one
+       be created?  The defaul is `True`.
+
+    ``bare``
+
+       If the Git repository has to be created, should it be created as a bare
+       repository?  The default is `False`.  This argument is only used at the
+       time of repository creation.  When connecting to existing repositories,
+       GitFS detects whether the repository is bare or not and behaves
+       accordingly.
+    """
     session = None
     _cwd = ()
 
@@ -63,9 +93,16 @@ class GitFS(object):
         return parsed
 
     def cwd(self):
+        """
+        Return current working directory in repository.  Current working
+        directory always begins as '/'.
+        """
         return '/' + '/'.join(self._cwd)
 
     def chdir(self, path):
+        """
+        Change the current working directory in repository.
+        """
         session = self._session()
         parsed = self._mkpath(path)
         obj = session.find(parsed)
@@ -77,12 +114,38 @@ class GitFS(object):
 
     @contextlib.contextmanager
     def cd(self, path):
+        """
+        A context manager that changes the current working directory only in
+        the scope of the 'with' context.  Eg::
+
+            import gitfs
+
+            fs = gitfs.GitFS('myrepo')
+            with fs.cd('some/folder'):
+                fs.open('a/file')   # relative to /some/folder
+            fs.open('another/file') # relative to /
+        """
         prev = self._cwd
         self.chdir(path)
         yield
         self._cwd = prev
 
     def open(self, path, mode='r'):
+        """
+        Open a file for reading or writing.  Supported modes are::
+
+            + 'r', file is opened for reading
+            + 'w', file opened for writing
+            + 'a', file is opened for writing in append mode
+
+        'b' may appear in any mode but is ignored.  Effectively all files are
+        opened in binary mode, which should have no impact for platforms other
+        than Windows, which is not supported by this library anyway.
+
+        Files are not seekable as they are attached via pipes to subprocesses
+        that are reading or writing to the git database via git plumbing
+        commands.
+        """
         session = self._session()
         parsed = self._mkpath(path)
 
@@ -122,6 +185,10 @@ class GitFS(object):
         raise ValueError("Bad mode: %s" % mode)
 
     def listdir(self, path=''):
+        """
+        Return list of files in directory indicated py `path`.  If `path` is
+        omitted, the current working directory is used.
+        """
         session = self._session()
         obj = session.find(self._mkpath(path))
         if not obj:
@@ -131,6 +198,10 @@ class GitFS(object):
         return list(obj.contents.keys())
 
     def mkdir(self, path):
+        """
+        Create a new directory.  The parent of the new directory must already
+        exist.
+        """
         session = self._session()
         parsed = self._mkpath(path)
         name = parsed[-1]
@@ -146,6 +217,10 @@ class GitFS(object):
         parent.new_tree(name)
 
     def mkdirs(self, path):
+        """
+        Create a new directory, including any ancestors which need to be created
+        in order to create the directory with the given `path`.
+        """
         session = self._session()
         parsed = self._mkpath(path)
         node = session.tree
@@ -158,6 +233,9 @@ class GitFS(object):
             node = next_node
 
     def rm(self, path):
+        """
+        Remove a single file.
+        """
         session = self._session()
         parsed = self._mkpath(path)
 
@@ -169,6 +247,9 @@ class GitFS(object):
         obj.parent.remove(obj.name)
 
     def rmdir(self, path):
+        """
+        Remove a single directory.  The directory must be empty.
+        """
         session = self._session()
         parsed = self._mkpath(path)
 
@@ -183,6 +264,9 @@ class GitFS(object):
         obj.parent.remove(obj.name)
 
     def rmtree(self, path):
+        """
+        Remove a directory and any of its contents.
+        """
         session = self._session()
         parsed = self._mkpath(path)
 
@@ -195,6 +279,9 @@ class GitFS(object):
         obj.parent.remove(obj.name)
 
     def mv(self, src, dst):
+        """
+        Move a file or directory from `src` path to `dst` path.
+        """
         session = self._session()
         spath = self._mkpath(src)
         if not spath:
@@ -220,14 +307,25 @@ class GitFS(object):
             dobj.parent.set(dobj.name, sfolder.remove(sname))
 
     def exists(self, path):
+        """
+        Returns boolean indicating whether a file or directory exists at the
+        given `path`.
+        """
         session = self._session()
         return bool(session.find(self._mkpath(path)))
 
     def isdir(self, path):
+        """
+        Returns boolean indicating whether the given `path` is a directory.
+        """
         session = self._session()
         return isinstance(session.find(self._mkpath(path)), _TreeNode)
 
     def empty(self, path):
+        """
+        Returns boolean indicating whether the directory indicated by `path` is
+        empty.
+        """
         session = self._session()
         obj = session.find(self._mkpath(path))
         if not obj:
@@ -277,27 +375,23 @@ class _Session(object):
 
     def abort(self, tx):
         """
-        Abort transaction without attempting to commit.
+        Part of datamanager API.
         """
         self.close()
 
     def tpc_begin(self, tx):
         """
-        Initiate two phase commit.
+        Part of datamanager API.
         """
-        pass
 
     def commit(self, tx):
         """
-        Prepare to save changes, but don't actually save them.
+        Part of datamanager API.
         """
-        pass
 
     def tpc_vote(self, tx):
         """
-        If we can't commit the transaction, raise an exception here.  If no
-        exception is raised we damn well better be able to get through
-        tpc_finish without any errors.  Last chance to bail is here.
+        Part of datamanager API.
         """
         if not self.tree.dirty:
             # Nothing to do
@@ -346,7 +440,7 @@ class _Session(object):
 
     def tpc_finish(self, tx):
         """
-        Write data to disk, committing transaction.
+        Part of datamanager API.
         """
         if not self.tree.dirty:
             # Nothing to do
@@ -374,7 +468,7 @@ class _Session(object):
 
     def tpc_abort(self, tx):
         """
-        Clean up in the event that some data manager has vetoed the transaction.
+        Part of datamanager API.
         """
         self.close()
 
