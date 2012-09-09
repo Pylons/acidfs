@@ -15,7 +15,9 @@ class GitFS(object):
     """
     Exposes a view of a filesystem with ACID semantics usable via the
     `transaction <http://pypi.python.org/pypi/transaction>`_ package.  The
-    filesystem is backed by a `Git <http://git-scm.com/>`_ repository.
+    filesystem is backed by a `Git <http://git-scm.com/>`_ repository.  An
+    instance of `GitFS` is not thread safe and should not be shared by multiple
+    concurrent contexts.
 
     Constructor Arguments
 
@@ -94,8 +96,7 @@ class GitFS(object):
 
     def cwd(self):
         """
-        Return current working directory in repository.  Current working
-        directory always begins as '/'.
+        Returns the path to the current working directory in the repository.
         """
         return '/' + '/'.join(self._cwd)
 
