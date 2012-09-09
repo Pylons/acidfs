@@ -102,7 +102,7 @@ use `pyramid_tm <http://pypi.python.org/pypi/pyramid_tm>`_.
 
 For methods which accept a `path` argument, if the path begins with a `/`, that
 path is construed to be absolute, starting at the root of the `Git` repository. 
-Paths which do not beging with a `/`, are construed as being relative to the 
+Paths which do not begin with a `/`, are construed as being relative to the 
 current working directory.  The current working directory always begins as the
 root of the repository, but may be changed at any time using 
 `acidfs.AcidFS.chdir()`::
