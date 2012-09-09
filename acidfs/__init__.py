@@ -448,6 +448,7 @@ class _Session(object):
             return
 
         # Update branch to point to our commit
+        # XXX Use git update-ref ???
         reffile = os.path.join(self.db, 'refs', 'heads', self.ref)
         with open(reffile, 'w') as f:
             print >> f, self.commit_oid
@@ -693,7 +694,6 @@ def _popen(args, **kw):
     retcode = proc.wait()
     if retcode != 0:
         raise subprocess.CalledProcessError(retcode, repr(args))
-
 
 
 def _NoSuchFileOrDirectory(path):
