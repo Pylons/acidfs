@@ -11,12 +11,12 @@ import weakref
 log = logging.getLogger(__name__)
 
 
-class GitFS(object):
+class AcidFS(object):
     """
     Exposes a view of a filesystem with ACID semantics usable via the
     `transaction <http://pypi.python.org/pypi/transaction>`_ package.  The
     filesystem is backed by a `Git <http://git-scm.com/>`_ repository.  An
-    instance of `GitFS` is not thread safe and should not be shared by multiple
+    instance of `AcidFS` is not thread safe and should not be shared by multiple
     concurrent contexts.
 
     Constructor Arguments
@@ -41,7 +41,7 @@ class GitFS(object):
        If the Git repository has to be created, should it be created as a bare
        repository?  The default is `False`.  This argument is only used at the
        time of repository creation.  When connecting to existing repositories,
-       GitFS detects whether the repository is bare or not and behaves
+       AcidFS detects whether the repository is bare or not and behaves
        accordingly.
     """
     session = None
@@ -119,9 +119,9 @@ class GitFS(object):
         A context manager that changes the current working directory only in
         the scope of the 'with' context.  Eg::
 
-            import gitfs
+            import acidfs
 
-            fs = gitfs.GitFS('myrepo')
+            fs = acidfs.AcidFS('myrepo')
             with fs.cd('some/folder'):
                 fs.open('a/file')   # relative to /some/folder
             fs.open('another/file') # relative to /
@@ -348,7 +348,7 @@ class _Session(object):
     def __init__(self, db, ref):
         self.db = db
         self.ref = ref
-        self.lock_file = os.path.join(db, 'gitfs.lock')
+        self.lock_file = os.path.join(db, 'acidfs.lock')
         transaction.get().join(self)
 
         reffile = os.path.join(db, 'refs', 'heads', ref)
@@ -404,7 +404,7 @@ class _Session(object):
         # Prepare metadata for commit
         message = tx.description
         if not message:
-            message = 'GitFS transaction'
+            message = 'AcidFS transaction'
         gitenv = os.environ.copy()
         extension = tx._extension  # "Official" API despite underscore
         user = extension.get('user')

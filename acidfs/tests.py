@@ -22,7 +22,7 @@ class InitializationTests(unittest.TestCase):
         shutil.rmtree(self.tmp)
 
     def make_one(self, *args, **kw):
-        from gitfs import GitFS as test_class
+        from acidfs import AcidFS as test_class
         return test_class(self.tmp, *args, **kw)
 
     def test_new_repo_w_working_directory(self):
@@ -73,7 +73,7 @@ class InitializationTests(unittest.TestCase):
 class OperationalTests(unittest.TestCase):
 
     def setUp(self):
-        from gitfs import GitFS as test_class
+        from acidfs import AcidFS as test_class
         self.tmp = tempfile.mkdtemp('.gitstore-test')
         self.fs = test_class(self.tmp)
         transaction.abort()
@@ -273,7 +273,7 @@ class OperationalTests(unittest.TestCase):
                 f.read()
 
     def test_conflict_error(self):
-        from gitfs import ConflictError
+        from acidfs import ConflictError
         self.fs.open('foo', 'w').write('Hello!')
         open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
         subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
@@ -480,9 +480,9 @@ class OperationalTests(unittest.TestCase):
 
 class PopenTests(unittest.TestCase):
 
-    @mock.patch('gitfs.subprocess.Popen')
+    @mock.patch('acidfs.subprocess.Popen')
     def test_called_process_error(self, Popen):
-        from gitfs import _popen
+        from acidfs import _popen
         Popen.return_value.return_value.wait.return_value = 1
         with self.assertRaises(subprocess.CalledProcessError):
             with _popen(['what', 'ever']):

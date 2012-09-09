@@ -22,7 +22,7 @@ try:
 except IOError:
     README = CHANGES = ''
 
-setup(name='gitfs',
+setup(name='acidfs',
       version=VERSION,
       description='ACID semantics for the filesystem.',
       long_description=README + '\n\n' + CHANGES,
@@ -50,4 +50,4 @@ setup(name='gitfs',
       install_requires=requires,
       tests_require=tests_require,
       extras_require={'testing': testing_extras},
-      test_suite="gitfs.tests")
+      test_suite="acidfs.tests")

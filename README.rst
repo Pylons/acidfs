@@ -1,13 +1,13 @@
-=====
-GitFS
-=====
+======
+AcidFS
+======
 
------------------------
-The filesystem on ACID.
------------------------
+----------------------
+The filesystem on ACID
+----------------------
 
-`GitFS` allows interaction with the filesystem using transactions with ACID 
-semantics.  `Git` is used as a back end, and `GitFS` integrates with the 
+`AcidFS` allows interaction with the filesystem using transactions with ACID 
+semantics.  `Git` is used as a back end, and `AcidFS` integrates with the 
 `transaction <http://pypi.python.org/pypi/transaction>`_ package allowing use of
 multiple databases in a single transaction.
 
@@ -26,7 +26,7 @@ Features
   past states, roll back particular changes, replicate the repository remotely,
   etc.
 
-+ Changes to a `GitFS` filesystem are synced automatically with any other 
++ Changes to a `AcidFS` filesystem are synced automatically with any other 
   database making use of the `transaction` package and its two phase commit
   protocol, eg. `ZODB` or `SQLAlchemy`.
 
@@ -54,20 +54,20 @@ In a nutshell:
 + Only platforms where `fcntl` is available are supported.  This excludes 
   Microsoft Windows and probably the JVM as well.
 
-+ Kernel level locking is used to manage concurrency.  This means `GitFS` 
++ Kernel level locking is used to manage concurrency.  This means `AcidFS` 
   cannot handle multiple application servers writing to a shared network drive.
 
-+ The type of locking used only synchronizes other instances of `GitFS`.  Other
-  processes manipulating the `Git` repository without using `GitFS` could cause a
-  race condition.  A repository used by `GitFS` should only be written to by 
-  `GitFS` in order to avoid unpleasant race conditions.
++ The type of locking used only synchronizes other instances of `AcidFS`.  Other
+  processes manipulating the `Git` repository without using `AcidFS` could cause a
+  race condition.  A repository used by `AcidFS` should only be written to by 
+  `AcidFS` in order to avoid unpleasant race conditions.
   
 For the most part, during a transaction, nothing special needs to be done to
 manage concurrency since `Git's` storage model makes management of multiple,
 parallel trees trivially easy.  At commit time, however, the current head has
 to be updated with the new commit and any concurrent commits that have come in
 since the current transaction began, need to be merged.  This last step should
-be synchronized such that only one instance of `GitFS` is attempting this at a
+be synchronized such that only one instance of `AcidFS` is attempting this at a
 time.  The mechanism, currently, for doing this is use of the `fcntl` module
 which takes advantage of an advisory locking mechanism available in Unix
 kernels.
@@ -75,18 +75,18 @@ kernels.
 Usage
 =====
 
-`GitFS` is easy to use.  Just create an instance of `gitfs.GitFS` and start 
+`AcidFS` is easy to use.  Just create an instance of `acidfs.AcidFS` and start 
 using the filesystem::
 
-    import gitfs
+    import acidfs
 
-    fs = GitFS('path/to/my/repo')
+    fs = acidfs.AcidFS('path/to/my/repo')
     fs.mkdir('foo')
     with fs.open('/foo/bar', 'w') as f:
         print >> f, 'Hello!'
 
 If there is not already a `Git` repository at the path specified, one is created.  
-An instance of `GitFS` is not thread safe.  The same `GitFS` instance should
+An instance of `AcidFS` is not thread safe.  The same `AcidFS` instance should
 not be shared across threads or greenlets, etc.  
 
 The `transaction <http://pypi.python.org/pypi/transaction>`_ package is used to
@@ -105,13 +105,13 @@ path is construed to be absolute, starting at the root of the `Git` repository.
 Paths which do not beging with a `/`, are construed as being relative to the 
 current working directory.  The current working directory always begins as the
 root of the repository, but may be changed at any time using 
-`gitfs.GitFS.chdir()`::
+`acidfs.AcidFS.chdir()`::
 
     fs.chdir('foo')
     print fs.open('bar').read()
 
 The current working directory can also be changed only for a particular scope 
-using the `gitfs.GitFS.cd()` context manager with Python's `with` statement::
+using the `acidfs.AcidFS.cd()` context manager with Python's `with` statement::
 
     with fs.cd('/foo'):
         print fs.open('bar').read()
@@ -122,10 +122,10 @@ underlying filesystem.
 API
 ===
 
-The only object exposed publicly by `GitFS` is the class, `gitfs.GitFS`.  All
-interaction with `GitFS` is performed by using instances of `gitfs.GitFS`.
+The only object exposed publicly by `AcidFS` is the class, `acidfs.AcidFS`.  All
+interaction with `AcidFS` is performed by using instances of `acidfs.AcidFS`.
 
-gitfs.GitFS
+acidfs.AcidFS
 -----------
 
 def __init__(path, branch=None, create=True, bare=False)
@@ -153,7 +153,7 @@ Arguments
        If the `Git` repository has to be created, should it be created as a bare
        repository?  The default is `False`.  This argument is only used at the
        time of repository creation.  When connecting to existing repositories,
-       `GitFS` detects whether the repository is bare or not and behaves
+       `AcidFS` detects whether the repository is bare or not and behaves
        accordingly.
  
 def cwd()
@@ -173,9 +173,9 @@ def cd(path)
 A context manager that changes the current working directory only in
 the scope of the 'with' context.  Eg::
 
-    import gitfs
+    import acidfs
 
-    fs = gitfs.GitFS('myrepo')
+    fs = acidfs.AcidFS('myrepo')
     with fs.cd('some/folder'):
         fs.open('a/file')   # relative to /some/folder
     fs.open('another/file') # relative to /
@@ -260,7 +260,7 @@ Roadmap to 1.0 beta
 
 + Implement merging at commit time.  Currently if a concurrent commit has 
   occured during another transaction, the transaction which commits second will
-  always raise a `gitfs.ConflictError`.  It is expected we'll at least try to 
+  always raise a `acidfs.ConflictError`.  It is expected we'll at least try to 
   merge first.
 
 + Get a tox going and test under Python 2.6 and 2.7.  
