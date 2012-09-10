@@ -25,64 +25,28 @@ class AcidFS(object):
 
        The path in the real, local fileystem of the repository.
 
-    ``branch``
-
-       Name of the branch in the Git repository to use.  If omitted, the
-       current HEAD is used.  If omitted, the repository cannot be in a
-       detached HEAD state.
-
     ``create``
 
-       If there is not Git repository in the indicated directory, should one
-       be created?  The defaul is `True`.
-
-    ``bare``
-
-       If the Git repository has to be created, should it be created as a bare
-       repository?  The default is `False`.  This argument is only used at the
-       time of repository creation.  When connecting to existing repositories,
-       AcidFS detects whether the repository is bare or not and behaves
-       accordingly.
+       If there is not a Git repository in the indicated directory, should one
+       be created?  The default is `True`.
     """
     session = None
     _cwd = ()
 
-    def __init__(self, path, branch=None, create=True, bare=False):
-        db = os.path.join(path, '.git')
-        if not os.path.exists(db):
-            # Bare repository
-            db = path
-
-        head = os.path.join(db, 'HEAD')
-        if not os.path.exists(head):
+    def __init__(self, dbpath, create=True):
+        self.db = dbpath
+        if not os.path.exists(os.path.join(dbpath, '.git')):
             if create:
-                if bare:
-                    subprocess.check_output(['git', 'init', '--bare', db])
-                else:
-                    subprocess.check_output(['git', 'init', path])
-                    db = os.path.join(path, '.git')
-                    head = os.path.join(db, 'HEAD')
+                subprocess.check_output(['git', 'init', dbpath])
             else:
-                raise ValueError('No database found in %s' % path)
-
-        self.db = db
-        if branch:
-            self.ref = branch
-            return
-
-        headref = open(head).read().strip()
-        if not headref.startswith('ref: '):
-            raise ValueError('Cannot use detached HEAD state.')
-
-        assert headref.startswith('ref: refs/heads/')
-        self.ref = headref[16:]  # len('ref: refs/heads/') == 16
+                raise ValueError('No database found in %s' % dbpath)
 
     def _session(self):
         """
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = _Session(self.db, self.ref)
+            self.session = _Session(self.db)
         return self.session
 
     def _mkpath(self, path):
@@ -347,28 +311,21 @@ class _Session(object):
     joined = False
     lockfd = None
 
-    def __init__(self, db, ref):
+    def __init__(self, db):
         self.db = db
-        self.ref = ref
         self.lock_file = os.path.join(db, 'acidfs.lock')
         transaction.get().join(self)
 
-        reffile = os.path.join(db, 'refs', 'heads', ref)
-        if not os.path.exists(reffile):
-            # If no other heads exist, then we have a fresh repo.  Otherwise,
-            # we probably have a typo.
-            headsdir = os.path.join(db, 'refs', 'heads')
-            if os.listdir(headsdir):
-                raise ValueError("No such head: %s" % ref)
-            else:
-                log.info("New repository with no previous commits.")
-                self.prev_commit = None
-                self.tree = _TreeNode(db)
-                return
+        # Brand new repo won't have any heads yet
+        if os.listdir(os.path.join(db, 'refs', 'heads')):
+            # Existing repo, get head revision
+            self.prev_commit = subprocess.check_output(
+                ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=db).strip()
+            self.tree = _TreeNode.read(db, self.prev_commit)
         else:
-            self.prev_commit = open(reffile).read().strip()
-            self.tree = _TreeNode.read(db, '%s^{tree}' % self.prev_commit)
-
+            # New repo, no commits yet
+            self.tree = _TreeNode(db) # empty tree
+            self.prev_commit = None
 
     def find(self, path):
         assert isinstance(path, (list, tuple))
