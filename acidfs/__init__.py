@@ -337,7 +337,9 @@ class AcidFS(object):
 
 
 class ConflictError(Exception):
-    pass
+
+    def __init__(self, msg='Unable to merge changes to repository.'):
+        super(ConflictError, self).__init__(msg)
 
 
 class _Session(object):
@@ -424,20 +426,39 @@ class _Session(object):
         if self.prev_commit:
             args.append('-p')
             args.append(self.prev_commit)
-        self.commit_oid = subprocess.check_output(
+        commit_oid = subprocess.check_output(
             args, cwd=self.db, env=gitenv).strip()
 
-        # Acquire an exclusive (aka write) lock for updating the branch ref
-        # This would be a good place to do any necessary merging, but for now
-        # we'll just bail if anything has gotten committed in the meantime.
+        # Acquire an exclusive (aka write) lock for merge.
         self.acquire_lock()
-        reffile = os.path.join(self.db, 'refs', 'heads', self.ref)
-        if not os.path.exists(reffile):
-            assert not self.prev_commit # First commit
-        else:
-            cur_commit = open(reffile).read().strip()
-            if cur_commit != self.prev_commit:
+
+        # If this is initial commit, there's not really anything to merge
+        if not self.prev_commit:
+            # Make sure there haven't been other commits
+            if os.listdir(os.path.join(self.db, 'refs', 'heads')):
+                # This was the initial commit, but somebody got to it first
+                # No idea how to try to resolve that one.  Luckily it will be
+                # very rare.
                 raise ConflictError()
+
+            # New commit is new head
+            self.next_commit = commit_oid
+            return
+
+        # Find the merge base
+        merge_base = subprocess.check_output(
+            ['git', 'merge-base', self.prev_commit, commit_oid],
+            cwd=self.db).strip()
+
+        # If the merge base is the previous commit, it means there have been no
+        # intervening changes and we can just fast forward to the new commit.
+        # This is the most common case.
+        if merge_base == self.prev_commit:
+            self.next_commit = commit_oid
+            return
+
+        # Darn it, now we have to actually try to merge
+        self.next_commit = self.merge(merge_base, tree_oid)
 
     def tpc_finish(self, tx):
         """
@@ -447,25 +468,9 @@ class _Session(object):
             # Nothing to do
             return
 
-        # Update branch to point to our commit
-        # XXX Use git update-ref ???
-        reffile = os.path.join(self.db, 'refs', 'heads', self.ref)
-        with open(reffile, 'w') as f:
-            print >> f, self.commit_oid
-
-        # Update working directory if appropriate
-        if os.path.split(self.db)[1] == '.git':
-            # Is not a bare repository
-            headfile = os.path.join(self.db, 'HEAD')
-            working_head = open(headfile).read().strip()
-            assert working_head.startswith('ref: refs/heads/')
-            working_head = working_head[16:]
-            if working_head == self.ref:
-                # And the working directory is tracking the branch we just
-                # committed to.
-                subprocess.check_output(['git', 'reset', 'HEAD', '--hard'],
-                                        cwd=self.db[:-5])
-
+        # Make our commit the new head
+        subprocess.check_output(
+            ['git', 'reset', '--hard', self.next_commit], cwd=self.db)
         self.close()
 
     def tpc_abort(self, tx):
@@ -489,6 +494,9 @@ class _Session(object):
             fcntl.lockf(fd, fcntl.LOCK_UN)
             os.close(fd)
             self.lockfd = None
+
+    def merge(self, base_oid, tree_oid):
+        raise ConflictError()
 
 
 class _TreeNode(object):
