@@ -317,7 +317,7 @@ class _Session(object):
         transaction.get().join(self)
 
         # Brand new repo won't have any heads yet
-        if os.listdir(os.path.join(db, 'refs', 'heads')):
+        if os.listdir(os.path.join(db, '.git', 'refs', 'heads')):
             # Existing repo, get head revision
             self.prev_commit = subprocess.check_output(
                 ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=db).strip()
@@ -392,7 +392,7 @@ class _Session(object):
         # If this is initial commit, there's not really anything to merge
         if not self.prev_commit:
             # Make sure there haven't been other commits
-            if os.listdir(os.path.join(self.db, 'refs', 'heads')):
+            if os.listdir(os.path.join(self.db, '.git', 'refs', 'heads')):
                 # This was the initial commit, but somebody got to it first
                 # No idea how to try to resolve that one.  Luckily it will be
                 # very rare.
@@ -403,14 +403,15 @@ class _Session(object):
             return
 
         # Find the merge base
+        current = subprocess.check_output(
+            ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=self.db).strip()
         merge_base = subprocess.check_output(
-            ['git', 'merge-base', self.prev_commit, commit_oid],
-            cwd=self.db).strip()
+            ['git', 'merge-base', current, commit_oid], cwd=self.db).strip()
 
-        # If the merge base is the previous commit, it means there have been no
+        # If the merge base is the current commit, it means there have been no
         # intervening changes and we can just fast forward to the new commit.
         # This is the most common case.
-        if merge_base == self.prev_commit:
+        if merge_base == current:
             self.next_commit = commit_oid
             return
 

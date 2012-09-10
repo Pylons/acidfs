@@ -29,45 +29,10 @@ class InitializationTests(unittest.TestCase):
         self.make_one()
         self.assertTrue(os.path.exists(os.path.join(self.tmp, '.git')))
 
-    def test_new_bare_repo(self):
-        self.make_one(bare=True)
-        self.assertTrue(os.path.exists(os.path.join(self.tmp, 'HEAD')))
-
     def test_no_repo_dont_create(self):
         with self.assertRaises(ValueError) as cm:
             self.make_one(create=False)
         self.assertTrue(str(cm.exception).startswith('No database found'))
-
-    def test_detached_head(self):
-        fs = self.make_one()
-        fs.open('foo', 'w').write('bar')
-        transaction.commit()
-
-        os.chdir(self.tmp)
-        reffile = os.path.join(self.tmp, '.git', 'refs', 'heads', 'master')
-        commit = open(reffile).read().strip()
-        subprocess.check_output(['git', 'checkout', commit],
-                                stderr=subprocess.STDOUT)
-        with self.assertRaises(ValueError) as cm:
-            fs = self.make_one()
-        self.assertEqual(str(cm.exception), 'Cannot use detached HEAD state.')
-
-    def test_branch(self):
-        fs = self.make_one(branch='foo')
-        fs.open('foo', 'w').write('bar')
-        transaction.commit()
-
-        reffile = os.path.join(self.tmp, '.git', 'refs', 'heads', 'foo')
-        self.assertTrue(os.path.exists(reffile))
-
-    def test_no_such_branch(self):
-        fs = self.make_one()
-        fs.open('foo', 'w').write('bar')
-        transaction.commit()
-
-        with self.assertRaises(ValueError):
-            fs = self.make_one(branch='foo')
-            fs.open('foo')
 
 
 class OperationalTests(unittest.TestCase):
@@ -272,7 +237,7 @@ class OperationalTests(unittest.TestCase):
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
                 f.read()
 
-    def test_conflict_error(self):
+    def test_conflict_error_on_first_commit(self):
         from acidfs import ConflictError
         self.fs.open('foo', 'w').write('Hello!')
         open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
@@ -282,7 +247,19 @@ class OperationalTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             transaction.commit()
 
-    def test_merge_tree(self):
+    def test_conflict_error(self):
+        from acidfs import ConflictError
+        self.fs.open('foo', 'w').write('Hello!')
+        transaction.commit()
+        self.fs.open('foo', 'w').write('Party!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
+        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
+                                cwd=self.tmp)
+        with self.assertRaises(ConflictError):
+            transaction.commit()
+
+    def future_merge_tree(self):
         fs = self.fs
         fs.open('foo', 'w').write('Hello!\n')
         transaction.commit()
