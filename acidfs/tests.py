@@ -282,6 +282,21 @@ class OperationalTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             transaction.commit()
 
+    def test_merge_tree(self):
+        fs = self.fs
+        fs.open('foo', 'w').write('Hello!\n')
+        transaction.commit()
+
+        fs.open('bar', 'w').write('Howdy!\n')
+        open(os.path.join(self.tmp, 'baz'), 'w').write('Ciao!\n')
+        subprocess.check_output(['git', 'add', 'baz'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
+        transaction.commit()
+
+        self.assertTrue(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+        self.assertTrue(fs.exists('baz'))
+
     def test_append(self):
         fs = self.fs
         fs.open('foo', 'w').write('Hello!\n')
