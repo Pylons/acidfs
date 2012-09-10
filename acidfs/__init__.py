@@ -313,7 +313,7 @@ class _Session(object):
 
     def __init__(self, db):
         self.db = db
-        self.lock_file = os.path.join(db, 'acidfs.lock')
+        self.lock_file = os.path.join(db, '.git', 'acidfs.lock')
         transaction.get().join(self)
 
         # Brand new repo won't have any heads yet
@@ -359,32 +359,7 @@ class _Session(object):
 
         # Write tree to db
         tree_oid = self.tree.save()
-
-        # Prepare metadata for commit
-        message = tx.description
-        if not message:
-            message = 'AcidFS transaction'
-        gitenv = os.environ.copy()
-        extension = tx._extension  # "Official" API despite underscore
-        user = extension.get('user')
-        if not user:
-            user = tx.user
-            if user:
-                user = user.split(None, 1)[1] # strip Zope's "path"
-        if user:
-            gitenv['GIT_AUTHOR_NAME'] = gitenv['GIT_COMMITER_NAME'] = user
-        email = extension.get('email')
-        if email:
-            gitenv['GIT_AUTHOR_EMAIL'] = gitenv['GIT_COMMITTER_EMAIL'] = \
-                gitenv['EMAIL'] = email
-
-        # Write commit to db
-        args = ['git', 'commit-tree', tree_oid, '-m', message]
-        if self.prev_commit:
-            args.append('-p')
-            args.append(self.prev_commit)
-        commit_oid = subprocess.check_output(
-            args, cwd=self.db, env=gitenv).strip()
+        commit_oid = self.mkcommit(tx, tree_oid)
 
         # Acquire an exclusive (aka write) lock for merge.
         self.acquire_lock()
@@ -416,7 +391,8 @@ class _Session(object):
             return
 
         # Darn it, now we have to actually try to merge
-        self.next_commit = self.merge(merge_base, tree_oid)
+        self.merge(merge_base, current, tree_oid)
+        self.next_commit = self.mkcommit(tx, self.tree.save())
 
     def tpc_finish(self, tx):
         """
@@ -453,8 +429,79 @@ class _Session(object):
             os.close(fd)
             self.lockfd = None
 
-    def merge(self, base_oid, tree_oid):
-        raise ConflictError()
+    def mkcommit(self, tx, tree_oid):
+        # Prepare metadata for commit
+        message = tx.description
+        if not message:
+            message = 'AcidFS transaction'
+        gitenv = os.environ.copy()
+        extension = tx._extension  # "Official" API despite underscore
+        user = extension.get('user')
+        if not user:
+            user = tx.user
+            if user:
+                user = user.split(None, 1)[1] # strip Zope's "path"
+        if user:
+            gitenv['GIT_AUTHOR_NAME'] = gitenv['GIT_COMMITER_NAME'] = user
+        email = extension.get('email')
+        if email:
+            gitenv['GIT_AUTHOR_EMAIL'] = gitenv['GIT_COMMITTER_EMAIL'] = \
+                gitenv['EMAIL'] = email
+
+        # Write commit to db
+        args = ['git', 'commit-tree', tree_oid, '-m', message]
+        if self.prev_commit:
+            args.append('-p')
+            args.append(self.prev_commit)
+        return subprocess.check_output(
+            args, cwd=self.db, env=gitenv).strip()
+
+
+    def merge(self, base_oid, current, tree_oid):
+        with _popen(['git', 'merge-tree', base_oid, tree_oid, current],
+                   cwd=self.db, stdout=subprocess.PIPE) as proc:
+            # Messy finite state machine
+            state = None
+            extra_state = None
+            stream = proc.stdout
+            line = stream.readline()
+            while line:
+                if state is None: # default, scanning for start of a change
+                    if line[0].isalpha():
+                        # If first column is a letter, then we have the first
+                        # line of a change, which describes the change.
+                        line = line.strip()
+                        if line == 'added in local':
+                            # We don't care about changes to our current tree.
+                            # We already know about those.
+                            pass
+
+                        elif line == 'added in remote':
+                            # The head got a new file, we should grab it
+                            state = _MERGE_ADDED_IN_REMOTE
+                            extra_state = []
+
+                        else:
+                            raise ConflictError()
+
+                elif state is _MERGE_ADDED_IN_REMOTE:
+                    if line[0].isalpha() or line[0] == '@':
+                        # Done collecting tree lines, only expecting one
+                        assert len(extra_state) == 1
+                        whose, mode, oid, path = extra_state[0].split()
+                        assert whose == 'their'
+                        assert mode == '100644'
+                        path = path.split('/')
+                        folder = self.find(path[:-1])
+                        assert isinstance(folder, _TreeNode)
+                        folder.set(path[-1], ('blob', oid, None))
+                        state = None
+                        continue
+
+                    else:
+                        extra_state.append(line)
+
+                line = stream.readline()
 
 
 class _TreeNode(object):
@@ -680,3 +727,6 @@ def _FileExists(path):
 
 def _DirectoryNotEmpty(path):
     return IOError(39, 'Directory not empty', path)
+
+
+_MERGE_ADDED_IN_REMOTE = object()

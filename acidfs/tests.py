@@ -259,7 +259,7 @@ class OperationalTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             transaction.commit()
 
-    def future_merge_tree(self):
+    def test_merge_tree(self):
         fs = self.fs
         fs.open('foo', 'w').write('Hello!\n')
         transaction.commit()
