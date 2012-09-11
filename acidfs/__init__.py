@@ -78,6 +78,24 @@ class AcidFS(object):
             parsed = type(parsed)(self._cwd) + parsed
         return parsed
 
+    def get_base(self):
+        """
+        Returns the id of the commit that is the current base for the
+        transaction.
+        """
+        session = self._session()
+        return session.prev_commit
+
+    def set_base(self, commit):
+        """
+        Sets the base commit for the current transaction.  The `commit`
+        argument may be the SHA1 of a commit or the name of a reference (eg.
+        branch or tag).  The current transaction must be clean.  If any changes
+        have been made in the transaction, a ConflictError will be raised.
+        """
+        session = self._session()
+        session.set_base(commit)
+
     def cwd(self):
         """
         Returns the path to the current working directory in the repository.
@@ -347,6 +365,14 @@ class _Session(object):
             # New repo, no commits yet
             self.tree = _TreeNode(db) # empty tree
             self.prev_commit = None
+
+    def set_base(self, ref):
+        if self.tree.dirty:
+            raise ConflictError(
+                "Cannot set base when changes already made in transaction.")
+        self.prev_commit = subprocess.check_output(
+            ['git', 'rev-list', '--max-count=1', ref], cwd=self.db).strip()
+        self.tree = _TreeNode.read(self.db, self.prev_commit)
 
     def find(self, path):
         assert isinstance(path, (list, tuple))

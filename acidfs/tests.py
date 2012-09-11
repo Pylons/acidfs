@@ -244,61 +244,6 @@ class FunctionalTests(unittest.TestCase):
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
                 f.read()
 
-    def test_conflict_error_on_first_commit(self):
-        from acidfs import ConflictError
-        fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!')
-        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
-        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
-                                cwd=self.tmp)
-        with self.assertRaises(ConflictError):
-            transaction.commit()
-
-    def test_conflict_error(self):
-        from acidfs import ConflictError
-        fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!')
-        transaction.commit()
-        fs.open('foo', 'w').write('Party!')
-        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
-        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
-                                cwd=self.tmp)
-        with self.assertRaises(ConflictError):
-            transaction.commit()
-
-    def test_merge_add_file(self):
-        fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!\n')
-        transaction.commit()
-
-        fs.open('bar', 'w').write('Howdy!\n')
-        open(os.path.join(self.tmp, 'baz'), 'w').write('Ciao!\n')
-        subprocess.check_output(['git', 'add', 'baz'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
-        transaction.commit()
-
-        self.assertTrue(fs.exists('foo'))
-        self.assertTrue(fs.exists('bar'))
-        self.assertTrue(fs.exists('baz'))
-
-    def test_merge_rm_file(self):
-        fs = self.make_one()
-        fs.open('foo', 'w').write('Hello\n')
-        fs.open('bar', 'w').write('Grazie\n')
-        fs.open('baz', 'w').write('Prego\n')
-        transaction.commit()
-
-        fs.rm('foo')
-        subprocess.check_output(['git', 'rm', 'baz'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'gotcha'], cwd=self.tmp)
-        transaction.commit()
-
-        self.assertFalse(fs.exists('foo'))
-        self.assertTrue(fs.exists('bar'))
-        self.assertFalse(fs.exists('baz'))
-
     def test_append(self):
         fs = self.make_one()
         fs.open('foo', 'w').write('Hello!\n')
@@ -493,6 +438,83 @@ class FunctionalTests(unittest.TestCase):
 
         self.assertEqual(fs.cwd(), '/one')
         self.assertEqual(fs.listdir(), ['a'])
+
+    def test_conflict_error_on_first_commit(self):
+        from acidfs import ConflictError
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
+        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
+                                cwd=self.tmp)
+        with self.assertRaises(ConflictError):
+            transaction.commit()
+
+    def test_conflict_error(self):
+        from acidfs import ConflictError
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello!')
+        transaction.commit()
+        fs.open('foo', 'w').write('Party!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
+        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
+                                cwd=self.tmp)
+        with self.assertRaises(ConflictError):
+            transaction.commit()
+
+    def test_merge_add_file(self):
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello!\n')
+        transaction.commit()
+
+        fs.open('bar', 'w').write('Howdy!\n')
+        open(os.path.join(self.tmp, 'baz'), 'w').write('Ciao!\n')
+        subprocess.check_output(['git', 'add', 'baz'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
+        transaction.commit()
+
+        self.assertTrue(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+        self.assertTrue(fs.exists('baz'))
+
+    def test_merge_rm_file(self):
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello\n')
+        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('baz', 'w').write('Prego\n')
+        transaction.commit()
+
+        fs.rm('foo')
+        subprocess.check_output(['git', 'rm', 'baz'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'gotcha'], cwd=self.tmp)
+        transaction.commit()
+
+        self.assertFalse(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+        self.assertFalse(fs.exists('baz'))
+
+    def test_set_base(self):
+        from acidfs import ConflictError
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello\n')
+        transaction.commit()
+
+        base = fs.get_base()
+        fs.open('bar', 'w').write('Grazie\n')
+        with self.assertRaises(ConflictError):
+            fs.set_base('whatever')
+        transaction.commit()
+
+        fs.set_base(base)
+        self.assertTrue(fs.exists('foo'))
+        self.assertFalse(fs.exists('bar'))
+        fs.open('baz', 'w').write('Prego\n')
+        transaction.commit()
+
+        self.assertTrue(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+        self.assertTrue(fs.exists('baz'))
 
 
 class PopenTests(unittest.TestCase):
