@@ -528,6 +528,30 @@ class FunctionalTests(unittest.TestCase):
         self.assertEqual(fs.open('foo').read(), 'Hello\n')
         self.assertEqual(fs2.open('foo').read(), 'Howdy!\n')
 
+    def test_branch_and_then_merge(self):
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello')
+        transaction.commit()
+
+        fs2 = self.make_one(head='abranch')
+        fs2.set_base(fs.get_base())
+        fs2.open('bar', 'w').write('Ciao')
+        fs.open('baz', 'w').write('Hola')
+        transaction.commit()
+
+        fs.set_base('abranch')
+        fs.open('beez', 'w').write('buzz')
+        transaction.commit()
+
+        self.assertTrue(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+        self.assertTrue(fs.exists('baz'))
+        self.assertTrue(fs.exists('beez'))
+        self.assertTrue(fs2.exists('foo'))
+        self.assertTrue(fs2.exists('bar'))
+        self.assertFalse(fs2.exists('baz'))
+        self.assertFalse(fs2.exists('beez'))
+
 
 class PopenTests(unittest.TestCase):
 

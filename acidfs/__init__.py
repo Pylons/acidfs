@@ -673,7 +673,7 @@ class _Session(object):
 class _TreeNode(object):
     parent = None
     name = None
-    dirty = True
+    dirty = False
 
     @classmethod
     def read(cls, db, oid):
@@ -685,7 +685,6 @@ class _TreeNode(object):
                 mode, type, oid, name = line.split()
                 contents[name] = (type, oid, None)
 
-        node.dirty = False
         return node
 
     def __init__(self, db):
@@ -754,7 +753,7 @@ class _TreeNode(object):
                 continue # Nothing to do
             if isinstance(obj, _NewBlob):
                 raise ValueError("Cannot commit transaction with open files.")
-            elif type == 'tree' and obj.dirty:
+            elif type == 'tree' and (obj.dirty or not oid):
                 new_oid = obj.save()
                 self.contents[name] = ('tree', new_oid, None)
 
