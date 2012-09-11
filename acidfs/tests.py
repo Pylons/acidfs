@@ -13,13 +13,14 @@ import tempfile
 import transaction
 
 
-class InitializationTests(unittest.TestCase):
+class FunctionalTests(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp('.gitstore-test')
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
+        transaction.abort()
 
     def make_one(self, *args, **kw):
         from acidfs import AcidFS as test_class
@@ -33,19 +34,6 @@ class InitializationTests(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             self.make_one(create=False)
         self.assertTrue(str(cm.exception).startswith('No database found'))
-
-
-class OperationalTests(unittest.TestCase):
-
-    def setUp(self):
-        from acidfs import AcidFS as test_class
-        self.tmp = tempfile.mkdtemp('.gitstore-test')
-        self.fs = test_class(self.tmp)
-        transaction.abort()
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp)
-        transaction.abort()
 
     @contextlib.contextmanager
     def assertNoSuchFileOrDirectory(self, path):
@@ -98,7 +86,7 @@ class OperationalTests(unittest.TestCase):
             self.assertEqual(e.filename, path)
 
     def test_read_write_file(self):
-        fs = self.fs
+        fs = self.make_one()
         with fs.open('foo', 'w') as f:
             self.assertTrue(f.writable())
             print >> f, 'Hello'
@@ -116,7 +104,7 @@ class OperationalTests(unittest.TestCase):
         transaction.commit() # Nothing to commit
 
     def test_read_write_file_in_subfolder(self):
-        fs = self.fs
+        fs = self.make_one()
         self.assertFalse(fs.isdir('foo'))
         fs.mkdir('foo')
         self.assertTrue(fs.isdir('foo'))
@@ -135,7 +123,7 @@ class OperationalTests(unittest.TestCase):
             self.assertEqual(f.read(), 'Hello\n')
 
     def test_open_edge_cases(self):
-        fs = self.fs
+        fs = self.make_one()
 
         with self.assertNoSuchFileOrDirectory('foo'):
             fs.open('foo')
@@ -170,7 +158,7 @@ class OperationalTests(unittest.TestCase):
                              "Cannot commit transaction with open files.")
 
     def test_mkdir_edge_cases(self):
-        fs = self.fs
+        fs = self.make_one()
 
         with self.assertNoSuchFileOrDirectory('foo/bar'):
             fs.mkdir('foo/bar')
@@ -185,11 +173,12 @@ class OperationalTests(unittest.TestCase):
             fs.mkdir('bar')
 
     def test_commit_metadata(self):
+        fs = self.make_one()
         tx = transaction.get()
         tx.note("A test commit.")
         tx.setUser('Fred Flintstone')
         tx.setExtendedInfo('email', 'fred@bed.rock')
-        self.fs.open('foo', 'w').write('Howdy!')
+        fs.open('foo', 'w').write('Howdy!')
         transaction.commit()
 
         output = subprocess.check_output(['git', 'log'], cwd=self.tmp)
@@ -197,11 +186,12 @@ class OperationalTests(unittest.TestCase):
         self.assertIn('A test commit.', output)
 
     def test_commit_metadata_extended_info_for_user(self):
+        fs = self.make_one()
         tx = transaction.get()
         tx.note("A test commit.")
         tx.setExtendedInfo('user', 'Fred Flintstone')
         tx.setExtendedInfo('email', 'fred@bed.rock')
-        self.fs.open('foo', 'w').write('Howdy!')
+        fs.open('foo', 'w').write('Howdy!')
         transaction.commit()
 
         output = subprocess.check_output(['git', 'log'], cwd=self.tmp)
@@ -209,7 +199,7 @@ class OperationalTests(unittest.TestCase):
         self.assertIn('A test commit.', output)
 
     def test_modify_file(self):
-        fs = self.fs
+        fs = self.make_one()
         with fs.open('foo', 'w') as f:
             print >> f, "Howdy!"
         transaction.commit()
@@ -225,21 +215,24 @@ class OperationalTests(unittest.TestCase):
         self.assertEqual(open(path).read(), 'Hello!\n')
 
     def test_error_writing_blob(self):
+        fs = self.make_one()
         with self.assertRaises(subprocess.CalledProcessError):
-            with self.fs.open('foo', 'w') as f:
+            with fs.open('foo', 'w') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
                 print >> f, 'Howdy!'
 
     def test_error_reading_blob(self):
-        self.fs.open('foo', 'w').write('a' * 1000)
+        fs = self.make_one()
+        fs.open('foo', 'w').write('a' * 1000)
         with self.assertRaises(subprocess.CalledProcessError):
-            with self.fs.open('foo', 'r') as f:
+            with fs.open('foo', 'r') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
                 f.read()
 
     def test_conflict_error_on_first_commit(self):
         from acidfs import ConflictError
-        self.fs.open('foo', 'w').write('Hello!')
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello!')
         open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
         subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
         subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
@@ -249,9 +242,10 @@ class OperationalTests(unittest.TestCase):
 
     def test_conflict_error(self):
         from acidfs import ConflictError
-        self.fs.open('foo', 'w').write('Hello!')
+        fs = self.make_one()
+        fs.open('foo', 'w').write('Hello!')
         transaction.commit()
-        self.fs.open('foo', 'w').write('Party!')
+        fs.open('foo', 'w').write('Party!')
         open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
         subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
         subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
@@ -260,7 +254,7 @@ class OperationalTests(unittest.TestCase):
             transaction.commit()
 
     def test_merge_add_file(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.open('foo', 'w').write('Hello!\n')
         transaction.commit()
 
@@ -275,7 +269,7 @@ class OperationalTests(unittest.TestCase):
         self.assertTrue(fs.exists('baz'))
 
     def test_merge_rm_file(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.open('foo', 'w').write('Hello\n')
         fs.open('bar', 'w').write('Grazie\n')
         fs.open('baz', 'w').write('Prego\n')
@@ -291,7 +285,7 @@ class OperationalTests(unittest.TestCase):
         self.assertFalse(fs.exists('baz'))
 
     def test_append(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.open('foo', 'w').write('Hello!\n')
         transaction.commit()
 
@@ -308,7 +302,7 @@ class OperationalTests(unittest.TestCase):
         self.assertEqual(open(path).read(), 'Hello!\nDaddy!\n')
 
     def test_rm(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.open('foo', 'w').write('Hello\n')
         transaction.commit()
 
@@ -328,7 +322,7 @@ class OperationalTests(unittest.TestCase):
             fs.rm('.')
 
     def test_rmdir(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.mkdir('foo')
         fs.open('foo/bar', 'w').write('Hello\n')
         transaction.commit()
@@ -350,7 +344,7 @@ class OperationalTests(unittest.TestCase):
         self.assertFalse(os.path.exists(path))
 
     def test_rmtree(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.mkdirs('foo/bar')
         fs.open('foo/bar/baz', 'w').write('Hello\n')
         with self.assertNotADirectory('foo/bar/baz/boz'):
@@ -375,7 +369,7 @@ class OperationalTests(unittest.TestCase):
         self.assertFalse(os.path.exists(path))
 
     def test_empty(self):
-        fs = self.fs
+        fs = self.make_one()
         self.assertTrue(fs.empty('/'))
         fs.open('foo', 'w').write('Hello!')
         self.assertFalse(fs.empty('/'))
@@ -385,7 +379,7 @@ class OperationalTests(unittest.TestCase):
             fs.empty('foo/bar')
 
     def test_mv(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.mkdirs('one/a')
         fs.mkdirs('one/b')
         fs.open('one/a/foo', 'w').write('Hello!')
@@ -438,7 +432,7 @@ class OperationalTests(unittest.TestCase):
         self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'a')))
 
     def test_listdir(self):
-        fs = self.fs
+        fs = self.make_one()
         fs.mkdirs('one/a')
         fs.mkdir('two')
         fs.open('three', 'w').write('Hello!')
@@ -455,7 +449,7 @@ class OperationalTests(unittest.TestCase):
         self.assertEqual(fs.listdir('/one'), ['a'])
 
     def test_chdir(self):
-        fs = self.fs
+        fs = self.make_one()
 
         fs.mkdirs('one/a')
         fs.mkdir('two')
