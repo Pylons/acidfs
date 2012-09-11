@@ -26,6 +26,12 @@ class AcidFS(object):
 
        The path in the real, local fileystem of the repository.
 
+    ``head``
+
+       The name of a branch to use as the head for this transaction.  Changes
+       made using this instance will be merged to the given head.  The default,
+       if omitted, is to use the repository's current head.
+
     ``create``
 
        If there is not a Git repository in the indicated directory, should one
@@ -40,7 +46,7 @@ class AcidFS(object):
     session = None
     _cwd = ()
 
-    def __init__(self, path, create=True, bare=False):
+    def __init__(self, path, head='HEAD', create=True, bare=False):
         wdpath = path
         dbpath = os.path.join(path, '.git')
         if not os.path.exists(dbpath):
@@ -60,13 +66,14 @@ class AcidFS(object):
 
         self.wd = wdpath
         self.db = dbpath
+        self.head = head
 
     def _session(self):
         """
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = _Session(self.wd, self.db)
+            self.session = _Session(self.wd, self.db, self.head)
         return self.session
 
     def _mkpath(self, path):
@@ -349,20 +356,28 @@ class _Session(object):
     joined = False
     lockfd = None
 
-    def __init__(self, wd, db):
+    def __init__(self, wd, db, head):
         self.wd = wd
         self.db = db
         self.lock_file = os.path.join(db, 'acidfs.lock')
         transaction.get().join(self)
 
-        # Brand new repo won't have any heads yet
-        if os.listdir(os.path.join(db, 'refs', 'heads')):
-            # Existing repo, get head revision
+        curhead = open(os.path.join(db, 'HEAD')).read().strip()[16:]
+        if head == curhead:
+            head = 'HEAD'
+        if head == 'HEAD':
+            self.headref = os.path.join(db, 'refs', 'heads', curhead)
+        else:
+            self.headref = os.path.join(db, 'refs', 'heads', head)
+        self.head = head
+
+        if os.path.exists(self.headref):
+            # Existing head, get head revision
             self.prev_commit = subprocess.check_output(
-                ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=db).strip()
+                ['git', 'rev-list', '--max-count=1', head], cwd=db).strip()
             self.tree = _TreeNode.read(db, self.prev_commit)
         else:
-            # New repo, no commits yet
+            # New head, no commits yet
             self.tree = _TreeNode(db) # empty tree
             self.prev_commit = None
 
@@ -414,10 +429,10 @@ class _Session(object):
         # If this is initial commit, there's not really anything to merge
         if not self.prev_commit:
             # Make sure there haven't been other commits
-            if os.listdir(os.path.join(self.db, 'refs', 'heads')):
-                # This was the initial commit, but somebody got to it first
-                # No idea how to try to resolve that one.  Luckily it will be
-                # very rare.
+            if os.path.exists(self.headref):
+                # This was to be the initial commit, but somebody got to it
+                # first No idea how to try to resolve that one.  Luckily it
+                # will be very rare.
                 raise ConflictError()
 
             # New commit is new head
@@ -450,15 +465,24 @@ class _Session(object):
             return
 
         # Make our commit the new head
-        args = ['git', 'reset', self.next_commit]
-        if self.wd:
-            args.append('--hard')
-            cwd = self.wd
-        else:
-            args.append('--soft')
-            cwd = self.db
+        if self.head == 'HEAD':
+            # Use git reset to update current head
+            args = ['git', 'reset', self.next_commit]
+            if self.wd:
+                args.append('--hard')
+                cwd = self.wd
+            else:
+                args.append('--soft')
+                cwd = self.db
+            subprocess.check_output(args, cwd=cwd)
 
-        subprocess.check_output(args, cwd=cwd)
+        else:
+            # If not updating current head, just write the commit to the ref
+            # file directly.
+            reffile = os.path.join(self.db, 'refs', 'heads', self.head)
+            with open(reffile, 'w') as f:
+                print >> f, self.next_commit
+
         self.close()
 
     def tpc_abort(self, tx):

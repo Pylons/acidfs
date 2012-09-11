@@ -479,7 +479,7 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue(fs.exists('baz'))
 
     def test_merge_rm_file(self):
-        fs = self.make_one()
+        fs = self.make_one(head='master')
         fs.open('foo', 'w').write('Hello\n')
         fs.open('bar', 'w').write('Grazie\n')
         fs.open('baz', 'w').write('Prego\n')
@@ -515,6 +515,18 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue(fs.exists('foo'))
         self.assertTrue(fs.exists('bar'))
         self.assertTrue(fs.exists('baz'))
+
+    def test_use_other_branch(self):
+        fs = self.make_one(head='foo')
+        fs.open('foo', 'w').write('Hello\n')
+        transaction.commit()
+
+        fs2 = self.make_one()
+        fs2.open('foo', 'w').write('Howdy!\n')
+        transaction.commit()
+
+        self.assertEqual(fs.open('foo').read(), 'Hello\n')
+        self.assertEqual(fs2.open('foo').read(), 'Howdy!\n')
 
 
 class PopenTests(unittest.TestCase):
