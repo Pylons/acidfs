@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import traceback
 import transaction
 import weakref
 
@@ -458,6 +459,52 @@ class _Session(object):
 
 
     def merge(self, base_oid, current, tree_oid):
+        """
+        This attempts to interpret the output of 'git merge-tree', given the
+        current head, the tree we're currently working on, and the nearest
+        common ancestor commit (base_oid).
+
+        I haven't found any documentation on the format of the output of
+        'git merge-tree' so this is basically reverse engineered from studying
+        its output in different situations.  I try to be as conservative as
+        possible here and bail as soon as I hit anything I'm not 100% sure
+        about.  It is far preferable to raise a ConflictError than incorrectly
+        merge.  As such, the code below is peppered with assertions using the
+        'expect' function, which will raise a ConflictError if any of our
+        expectations aren't met.  I also attempt to log as much useful debug
+        information as possible in the case of an unmet expectation, so I can go
+        back and take into account more cases as they are encountered.
+
+        The basic algorithm here is a finite state machine operating on the
+        output of 'git merge-tree' one line at a time.  This should be fairly
+        memory efficient for even large changesets, with the caveat there may
+        have been added a large binary file which contains few or no line break
+        characters, which could cause a buffer to get large while scanning
+        through the merge data.
+
+        One might ask, why not use the porcelain 'git merge' command?  One
+        reason is, in the context of the two phase commit protocol, we'd rather
+        do pretty much everything we possibly can in the voting stage, leaving
+        ourselves with nothing to do in the finish phase except updating the
+        head to the commit we just created, and possibly updating the working
+        directory--operations that are guaranteed to work.  Since 'git merge'
+        will update the head, we'd prefer to do it during the final phase of the
+        commit, but we can't guarantee it will work.  There is not a convenient
+        way to do a merge dry run during the voting phase.  Although I can
+        conceive of ways to do the merge during the voting phase and roll back
+        to the previous head if we need to, that feels a little riskier.  Doing
+        the merge ourselves, here, also frees us from having to work with a
+        working directory, required by the porcelain 'git merge' command.  This
+        means we can use bare repositories and/or have transactions that use
+        a head other than the repositories 'current' head.
+
+        In general, tranactions will be short and will not have much a of a
+        chance to get very far behind the head, so merges will tend not to be
+        terribly complicated.  We should be able to handle the vast majority of
+        cases here, even if there are some rare corner cases the porcelain
+        command might be able to handle that we can't.  I think that's a
+        reasonable trade off for the flexibility this approach provides.
+        """
         with _popen(['git', 'merge-tree', base_oid, tree_oid, current],
                    cwd=self.db, stdout=subprocess.PIPE) as proc:
             # Messy finite state machine
@@ -465,6 +512,16 @@ class _Session(object):
             extra_state = None
             stream = proc.stdout
             line = stream.readline()
+            def expect(expectation, *msg):
+                if not expectation: # pragma no cover
+                    log.debug("Unmet expectation during merge.")
+                    log.debug(''.join(traceback.format_stack()))
+                    if msg:
+                        log.debug(msg[0], *msg[1:])
+                    if extra_state:
+                        log.debug("Extra state: %s", extra_state)
+                    raise ConflictError()
+
             while line:
                 if state is None: # default, scanning for start of a change
                     if line[0].isalpha():
@@ -487,20 +544,22 @@ class _Session(object):
                             extra_state = []
 
                         else:
+                            log.debug("Don't know how to merge: %s", line)
                             raise ConflictError()
 
                 elif state is _MERGE_ADDED_IN_REMOTE:
                     if line[0].isalpha() or line[0] == '@':
                         # Done collecting tree lines, only expecting one
-                        assert len(extra_state) == 1
+                        expect(len(extra_state) == 1, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
-                        assert whose == 'their'
-                        assert mode == '100644'
-                        path = path.split('/')
-                        folder = self.find(path[:-1])
-                        assert isinstance(folder, _TreeNode)
-                        folder.set(path[-1], ('blob', oid, None))
-                        state = None
+                        expect(whose == 'their', 'Unexpected whose: %s', whose)
+                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        parsed = path.split('/')
+                        folder = self.find(parsed[:-1])
+                        expect(isinstance(folder, _TreeNode),
+                               'Not a folder: %s', path)
+                        folder.set(parsed[-1], ('blob', oid, None))
+                        state = extra_state = None
                         continue
 
                     else:
@@ -510,20 +569,22 @@ class _Session(object):
                     if line[0].isalpha() or line[0] == '@':
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
-                        assert len(extra_state) == 2
+                        expect(len(extra_state) == 2, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
-                        assert whose in ('our', 'base')
-                        assert mode == '100644'
+                        expect(whose in ('our', 'base'), 'Unexpected whose: %s',
+                               whose)
+                        expect(mode == '100644', 'Unexpected mode: %s', mode)
                         whose, mode, oid2, path2 = extra_state[1].split()
-                        assert whose in ('our', 'base')
-                        assert mode == '100644'
-                        assert oid == oid2
-                        assert path == path2
+                        expect(whose in ('our', 'base'), 'Unexpected whose: %s',
+                               whose)
+                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(oid == oid2, "SHA1s don't match")
+                        expect(path == path2, "Paths don't match")
                         path = path.split('/')
                         folder = self.find(path[:-1])
-                        assert isinstance(folder, _TreeNode)
+                        expect(isinstance(folder, _TreeNode), "Not a folder")
                         folder.remove(path[-1])
-                        state = None
+                        state = extra_state = None
                         continue
 
                     else:
