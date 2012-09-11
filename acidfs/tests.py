@@ -259,7 +259,7 @@ class OperationalTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             transaction.commit()
 
-    def test_merge_tree(self):
+    def test_merge_add_file(self):
         fs = self.fs
         fs.open('foo', 'w').write('Hello!\n')
         transaction.commit()
@@ -273,6 +273,22 @@ class OperationalTests(unittest.TestCase):
         self.assertTrue(fs.exists('foo'))
         self.assertTrue(fs.exists('bar'))
         self.assertTrue(fs.exists('baz'))
+
+    def test_merge_rm_file(self):
+        fs = self.fs
+        fs.open('foo', 'w').write('Hello\n')
+        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('baz', 'w').write('Prego\n')
+        transaction.commit()
+
+        fs.rm('foo')
+        subprocess.check_output(['git', 'rm', 'baz'], cwd=self.tmp)
+        subprocess.check_output(['git', 'commit', '-m', 'gotcha'], cwd=self.tmp)
+        transaction.commit()
+
+        self.assertFalse(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+        self.assertFalse(fs.exists('baz'))
 
     def test_append(self):
         fs = self.fs

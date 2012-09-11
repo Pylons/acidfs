@@ -471,7 +471,7 @@ class _Session(object):
                         # If first column is a letter, then we have the first
                         # line of a change, which describes the change.
                         line = line.strip()
-                        if line == 'added in local':
+                        if line in ('added in local', 'removed in local'):
                             # We don't care about changes to our current tree.
                             # We already know about those.
                             pass
@@ -479,6 +479,11 @@ class _Session(object):
                         elif line == 'added in remote':
                             # The head got a new file, we should grab it
                             state = _MERGE_ADDED_IN_REMOTE
+                            extra_state = []
+
+                        elif line == 'removed in remote':
+                            # File got deleted from head, remove it
+                            state = _MERGE_REMOVED_IN_REMOTE
                             extra_state = []
 
                         else:
@@ -495,6 +500,29 @@ class _Session(object):
                         folder = self.find(path[:-1])
                         assert isinstance(folder, _TreeNode)
                         folder.set(path[-1], ('blob', oid, None))
+                        state = None
+                        continue
+
+                    else:
+                        extra_state.append(line)
+
+                elif state is _MERGE_REMOVED_IN_REMOTE:
+                    if line[0].isalpha() or line[0] == '@':
+                        # Done collecting tree lines, expect two, one for base,
+                        # one for our copy, whose sha1s should match
+                        assert len(extra_state) == 2
+                        whose, mode, oid, path = extra_state[0].split()
+                        assert whose in ('our', 'base')
+                        assert mode == '100644'
+                        whose, mode, oid2, path2 = extra_state[1].split()
+                        assert whose in ('our', 'base')
+                        assert mode == '100644'
+                        assert oid == oid2
+                        assert path == path2
+                        path = path.split('/')
+                        folder = self.find(path[:-1])
+                        assert isinstance(folder, _TreeNode)
+                        folder.remove(path[-1])
                         state = None
                         continue
 
@@ -730,3 +758,4 @@ def _DirectoryNotEmpty(path):
 
 
 _MERGE_ADDED_IN_REMOTE = object()
+_MERGE_REMOVED_IN_REMOTE = object()
