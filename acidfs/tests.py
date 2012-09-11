@@ -122,6 +122,21 @@ class FunctionalTests(unittest.TestCase):
         with open(actual_file) as f:
             self.assertEqual(f.read(), 'Hello\n')
 
+    def test_read_write_file_in_subfolder_bare_repo(self):
+        fs = self.make_one(bare=True)
+        self.assertFalse(fs.isdir('foo'))
+        fs.mkdir('foo')
+        self.assertTrue(fs.isdir('foo'))
+        with fs.open('foo/bar', 'w') as f:
+            print >> f, 'Hello'
+        with fs.open('foo/bar') as f:
+            self.assertEqual(f.read(), 'Hello\n')
+        transaction.commit()
+        self.assertTrue(fs.isdir('foo'))
+        self.assertFalse(fs.isdir('foo/bar'))
+        with fs.open('foo/bar') as f:
+            self.assertEqual(f.read(), 'Hello\n')
+
     def test_open_edge_cases(self):
         fs = self.make_one()
 

@@ -30,24 +30,43 @@ class AcidFS(object):
 
        If there is not a Git repository in the indicated directory, should one
        be created?  The default is `True`.
+
+    ``bare``
+
+       If the Git repository is to be created, create it as a bare repository.
+       If the repository is already created or `create` is False, this argument
+       has no effect.
     """
     session = None
     _cwd = ()
 
-    def __init__(self, dbpath, create=True):
+    def __init__(self, path, create=True, bare=False):
+        wdpath = path
+        dbpath = os.path.join(path, '.git')
+        if not os.path.exists(dbpath):
+            wdpath = None
+            dbpath = path
+            if not os.path.exists(os.path.join(dbpath, 'HEAD')):
+                if create:
+                    args = ['git', 'init', path]
+                    if bare:
+                        args.append('--bare')
+                    else:
+                        wdpath = path
+                        dbpath = os.path.join(path, '.git')
+                    subprocess.check_output(args)
+                else:
+                    raise ValueError('No database found in %s' % dbpath)
+
+        self.wd = wdpath
         self.db = dbpath
-        if not os.path.exists(os.path.join(dbpath, '.git')):
-            if create:
-                subprocess.check_output(['git', 'init', dbpath])
-            else:
-                raise ValueError('No database found in %s' % dbpath)
 
     def _session(self):
         """
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = _Session(self.db)
+            self.session = _Session(self.wd, self.db)
         return self.session
 
     def _mkpath(self, path):
@@ -312,13 +331,14 @@ class _Session(object):
     joined = False
     lockfd = None
 
-    def __init__(self, db):
+    def __init__(self, wd, db):
+        self.wd = wd
         self.db = db
-        self.lock_file = os.path.join(db, '.git', 'acidfs.lock')
+        self.lock_file = os.path.join(db, 'acidfs.lock')
         transaction.get().join(self)
 
         # Brand new repo won't have any heads yet
-        if os.listdir(os.path.join(db, '.git', 'refs', 'heads')):
+        if os.listdir(os.path.join(db, 'refs', 'heads')):
             # Existing repo, get head revision
             self.prev_commit = subprocess.check_output(
                 ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=db).strip()
@@ -368,7 +388,7 @@ class _Session(object):
         # If this is initial commit, there's not really anything to merge
         if not self.prev_commit:
             # Make sure there haven't been other commits
-            if os.listdir(os.path.join(self.db, '.git', 'refs', 'heads')):
+            if os.listdir(os.path.join(self.db, 'refs', 'heads')):
                 # This was the initial commit, but somebody got to it first
                 # No idea how to try to resolve that one.  Luckily it will be
                 # very rare.
@@ -404,8 +424,15 @@ class _Session(object):
             return
 
         # Make our commit the new head
-        subprocess.check_output(
-            ['git', 'reset', '--hard', self.next_commit], cwd=self.db)
+        args = ['git', 'reset', self.next_commit]
+        if self.wd:
+            args.append('--hard')
+            cwd = self.wd
+        else:
+            args.append('--soft')
+            cwd = self.db
+
+        subprocess.check_output(args, cwd=cwd)
         self.close()
 
     def tpc_abort(self, tx):
