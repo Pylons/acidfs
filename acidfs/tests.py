@@ -450,7 +450,7 @@ class FunctionalTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             transaction.commit()
 
-    def test_conflict_error(self):
+    def test_unable_to_merge_file(self):
         from acidfs import ConflictError
         fs = self.make_one()
         fs.open('foo', 'w').write('Hello!')
@@ -512,6 +512,38 @@ class FunctionalTests(unittest.TestCase):
 
         self.assertFalse(fs.exists('foo'))
         self.assertTrue(fs.exists('bar'))
+
+    def test_merge_add_same_file(self):
+        fs = self.make_one(head='master')
+        fs.open('foo', 'w').write('Hello\n')
+        transaction.commit()
+
+        base = fs.get_base()
+        fs.open('bar', 'w').write('Grazie\n')
+        transaction.commit()
+
+        fs.set_base(base)
+        fs.open('bar', 'w').write('Grazie\n')
+        # Do something else besides, so commit has different sha1
+        fs.open('baz', 'w').write('Prego\n')
+        transaction.commit()
+
+        self.assertEqual(fs.open('bar').read(), 'Grazie\n')
+
+    def test_merge_add_different_file_same_path(self):
+        from acidfs import ConflictError
+        fs = self.make_one(head='master')
+        fs.open('foo', 'w').write('Hello\n')
+        transaction.commit()
+
+        base = fs.get_base()
+        fs.open('bar', 'w').write('Grazie\n')
+        transaction.commit()
+
+        fs.set_base(base)
+        fs.open('bar', 'w').write('Prego\n')
+        with self.assertRaises(ConflictError):
+            transaction.commit()
 
     def test_merge_file(self):
         fs = self.make_one()

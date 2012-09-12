@@ -634,6 +634,10 @@ class _Session(object):
                             state = _MERGE_CHANGED_IN_BOTH
                             extra_state = []
 
+                        elif line == 'added in both':
+                            state = _MERGE_ADDED_IN_BOTH
+                            extra_state = []
+
                         else: # pragma NO COVER
                             log.debug("Don't know how to merge: %s", line)
                             raise ConflictError()
@@ -718,6 +722,31 @@ class _Session(object):
                             newblob = folder.new_blob(name, blob)
                             shutil.copyfileobj(open(tmp, 'rb'), newblob)
 
+                        state = extra_state = None
+                        continue
+
+                    else:
+                        extra_state.append(line)
+
+                elif state is _MERGE_ADDED_IN_BOTH:
+                    if line[0].isalpha() or line[0] == '@':
+                        # Done collecting tree lines, expect two, one for base,
+                        # one for our copy, whose sha1s should match
+                        expect(len(extra_state) == 2, 'Wrong number of lines')
+                        whose, mode, oid, path = extra_state[0].split()
+                        expect(whose in ('our', 'their'), 'Unexpected whose: %s',
+                               whose)
+                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        whose, mode, oid2, path2 = extra_state[1].split()
+                        expect(whose in ('our', 'their'), 'Unexpected whose: %s',
+                               whose)
+                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(path == path2, "Paths don't match")
+                        # Either it's the same file or a different file.
+                        if oid != oid2:
+                            # Different files, can't merge
+                            raise ConflictError()
+                        # Same file, nothing to do
                         state = extra_state = None
                         continue
 
@@ -962,3 +991,4 @@ def _DirectoryNotEmpty(path):
 _MERGE_ADDED_IN_REMOTE = object()
 _MERGE_REMOVED_IN_REMOTE = object()
 _MERGE_CHANGED_IN_BOTH = object()
+_MERGE_ADDED_IN_BOTH = object()
