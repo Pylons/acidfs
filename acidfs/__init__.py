@@ -455,6 +455,8 @@ class _Session(object):
 
         # Darn it, now we have to actually try to merge
         self.merge(merge_base, current, tree_oid)
+        # XXX Make sure the merge commit shows both parents and that it's note
+        #     indicates a merge.
         self.next_commit = self.mkcommit(tx, self.tree.save())
 
     def tpc_finish(self, tx):
