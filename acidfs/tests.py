@@ -16,7 +16,7 @@ import transaction
 class FunctionalTests(unittest.TestCase):
 
     def setUp(self):
-        self.tmp = tempfile.mkdtemp('.gitstore-test')
+        self.tmp = tempfile.mkdtemp('.acidfs-test')
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
@@ -493,6 +493,50 @@ class FunctionalTests(unittest.TestCase):
         self.assertFalse(fs.exists('foo'))
         self.assertTrue(fs.exists('bar'))
         self.assertFalse(fs.exists('baz'))
+
+    def test_merge_file(self):
+        fs = self.make_one()
+        with fs.open('foo', 'w') as f:
+            print >> f, 'One'
+            print >> f, 'Two'
+            print >> f, 'Three'
+            print >> f, 'Four'
+            print >> f, 'Five'
+        transaction.commit()
+
+        base = fs.get_base()
+        with fs.open('foo', 'w') as f:
+            print >> f, 'One'
+            print >> f, 'Dos'
+            print >> f, 'Three'
+            print >> f, 'Four'
+            print >> f, 'Five'
+        transaction.commit()
+
+        fs.set_base(base)
+        with fs.open('foo', 'a') as f:
+            print >> f, 'Sei'
+        transaction.commit()
+
+        self.assertEqual(list(fs.open('foo').readlines()), [
+            'One\n',
+            'Dos\n',
+            'Three\n',
+            'Four\n',
+            'Five\n',
+            'Sei\n'])
+        """
+changed in both
+  base   100644 949a655cb393f1eaee5e104e79acc80c9bceb5a4 foo
+  our    100644 77a8df944cbcfa77333d522ddcf4aeccca15b6c5 foo
+  their  100644 544f698b1f27d7f90cf1125bf7cf1e3c7d4681bf foo
+@@ -1,5 +1,5 @@
+ One
+-Two
++Dos
+ Three
+ Four
+ Five"""
 
     def test_set_base(self):
         from acidfs import ConflictError

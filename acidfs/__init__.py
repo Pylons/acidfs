@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import traceback
 import transaction
 import weakref
@@ -620,7 +621,13 @@ class _Session(object):
                             state = _MERGE_REMOVED_IN_REMOTE
                             extra_state = []
 
-                        else:
+                        elif line == 'changed in both':
+                            # File was edited in both branches, see if we can
+                            # patch
+                            state = _MERGE_CHANGED_IN_BOTH
+                            extra_state = []
+
+                        else: # pragma NO COVER
                             log.debug("Don't know how to merge: %s", line)
                             raise ConflictError()
 
@@ -661,6 +668,49 @@ class _Session(object):
                         folder = self.find(path[:-1])
                         expect(isinstance(folder, _TreeNode), "Not a folder")
                         folder.remove(path[-1])
+                        state = extra_state = None
+                        continue
+
+                    else:
+                        extra_state.append(line)
+
+                elif state is _MERGE_CHANGED_IN_BOTH:
+                    if line[0] == '@':
+                        # Done collecting tree lines, expect three, one for base
+                        # and one for each copy
+                        expect(len(extra_state) == 3, 'Wrong number of lines')
+                        whose, mode, oid, path = extra_state[0].split()
+                        expect(whose in ('base', 'our', 'their'),
+                               'Unexpected whose: %s', whose)
+                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        for extra_line in extra_state[1:]:
+                            whose, mode, oid2, path2 = extra_line.split()
+                            expect(whose in ('base', 'our', 'their'),
+                                   'Unexpected whose: %s', whose)
+                            expect(mode == '100644', 'Unexpected mode: %s',
+                                   mode)
+                            expect(path == path2, "Paths don't match")
+                        parsed = path.split('/')
+                        folder = self.find(parsed[:-1])
+                        expect(isinstance(folder, _TreeNode), "Not a folder")
+                        name = parsed[-1]
+                        blob = folder.get(name)
+                        expect(isinstance(blob, _Blob), "Not a blob")
+                        with _tempfile() as tmp:
+                            shutil.copyfileobj(blob.open(), open(tmp, 'wb'))
+                            with _popen(['patch', tmp, '-'],
+                                       stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE) as p:
+                                f = p.stdin
+                                while line and not line[0].isalpha():
+                                    if line[1:9] == '<<<<<<< ':
+                                        raise ConflictError()
+                                    f.write(line)
+                                    line = stream.readline()
+                            newblob = folder.new_blob(name, blob)
+                            shutil.copyfileobj(open(tmp, 'rb'), newblob)
+
                         state = extra_state = None
                         continue
 
@@ -874,6 +924,14 @@ def _popen(args, **kw):
         raise subprocess.CalledProcessError(retcode, repr(args))
 
 
+@contextlib.contextmanager
+def _tempfile():
+    fd, tmp = tempfile.mkstemp('.acidfs-merge')
+    os.close(fd)
+    yield tmp
+    os.remove(tmp)
+
+
 def _NoSuchFileOrDirectory(path):
     return IOError(2, 'No such file or directory', path)
 
@@ -896,3 +954,4 @@ def _DirectoryNotEmpty(path):
 
 _MERGE_ADDED_IN_REMOTE = object()
 _MERGE_REMOVED_IN_REMOTE = object()
+_MERGE_CHANGED_IN_BOTH = object()
