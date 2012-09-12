@@ -4,3 +4,4 @@
 .coverage
 .ropeproject
 venv
+docs/_build
