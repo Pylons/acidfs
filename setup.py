@@ -14,6 +14,7 @@ if sys.version < '2.7':
     tests_require += 'unittest2'
 
 testing_extras = tests_require + ['nose', 'coverage']
+doc_extras = ['Sphinx']
 
 here = os.path.abspath(os.path.dirname(__file__))
 try:
@@ -49,5 +50,8 @@ setup(name='acidfs',
       zip_safe=False,
       install_requires=requires,
       tests_require=tests_require,
-      extras_require={'testing': testing_extras},
+      extras_require={
+          'testing': testing_extras,
+          'docs': doc_extras,
+      },
       test_suite="acidfs.tests")
