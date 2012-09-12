@@ -525,18 +525,6 @@ class FunctionalTests(unittest.TestCase):
             'Four\n',
             'Five\n',
             'Sei\n'])
-        """
-changed in both
-  base   100644 949a655cb393f1eaee5e104e79acc80c9bceb5a4 foo
-  our    100644 77a8df944cbcfa77333d522ddcf4aeccca15b6c5 foo
-  their  100644 544f698b1f27d7f90cf1125bf7cf1e3c7d4681bf foo
-@@ -1,5 +1,5 @@
- One
--Two
-+Dos
- Three
- Four
- Five"""
 
     def test_set_base(self):
         from acidfs import ConflictError
@@ -595,6 +583,13 @@ changed in both
         self.assertTrue(fs2.exists('bar'))
         self.assertFalse(fs2.exists('baz'))
         self.assertFalse(fs2.exists('beez'))
+
+        # Expecting two parents for commit since it's a merge
+        commit = subprocess.check_output(
+            ['git', 'cat-file', '-p', 'HEAD^{commit}'],
+            cwd=self.tmp).split('\n')
+        self.assertTrue(commit[1].startswith('parent'))
+        self.assertTrue(commit[2].startswith('parent'))
 
 
 class PopenTests(unittest.TestCase):

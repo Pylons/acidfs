@@ -422,7 +422,11 @@ class _Session(object):
 
         # Write tree to db
         tree_oid = self.tree.save()
-        commit_oid = self.mkcommit(tx, tree_oid)
+        if self.prev_commit:
+            parents = [self.prev_commit]
+        else:
+           parents = []
+        commit_oid = self.mkcommit(tx, tree_oid, parents)
 
         # Acquire an exclusive (aka write) lock for merge.
         self.acquire_lock()
@@ -455,9 +459,8 @@ class _Session(object):
 
         # Darn it, now we have to actually try to merge
         self.merge(merge_base, current, tree_oid)
-        # XXX Make sure the merge commit shows both parents and that it's note
-        #     indicates a merge.
-        self.next_commit = self.mkcommit(tx, self.tree.save())
+        self.next_commit = self.mkcommit(
+            tx, self.tree.save(), [current, commit_oid], "Merge")
 
     def tpc_finish(self, tx):
         """
@@ -510,9 +513,10 @@ class _Session(object):
             os.close(fd)
             self.lockfd = None
 
-    def mkcommit(self, tx, tree_oid):
+    def mkcommit(self, tx, tree_oid, parents, message=None):
         # Prepare metadata for commit
-        message = tx.description
+        if not message:
+            message = tx.description
         if not message:
             message = 'AcidFS transaction'
         gitenv = os.environ.copy()
@@ -531,9 +535,9 @@ class _Session(object):
 
         # Write commit to db
         args = ['git', 'commit-tree', tree_oid, '-m', message]
-        if self.prev_commit:
+        for parent in parents:
             args.append('-p')
-            args.append(self.prev_commit)
+            args.append(parent)
         return subprocess.check_output(
             args, cwd=self.db, env=gitenv).strip()
 
