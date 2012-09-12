@@ -494,6 +494,25 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue(fs.exists('bar'))
         self.assertFalse(fs.exists('baz'))
 
+    def test_merge_rm_same_file(self):
+        fs = self.make_one(head='master')
+        fs.open('foo', 'w').write('Hello\n')
+        fs.open('bar', 'w').write('Grazie\n')
+        transaction.commit()
+
+        base = fs.get_base()
+        fs.rm('foo')
+        transaction.commit()
+
+        fs.set_base(base)
+        fs.rm('foo')
+        # Do something else besides, so commit has different sha1
+        fs.open('baz', 'w').write('Prego\n')
+        transaction.commit()
+
+        self.assertFalse(fs.exists('foo'))
+        self.assertTrue(fs.exists('bar'))
+
     def test_merge_file(self):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:

@@ -612,7 +612,8 @@ class _Session(object):
                         # If first column is a letter, then we have the first
                         # line of a change, which describes the change.
                         line = line.strip()
-                        if line in ('added in local', 'removed in local'):
+                        if line in ('added in local', 'removed in local',
+                                    'removed in both'):
                             # We don't care about changes to our current tree.
                             # We already know about those.
                             pass
