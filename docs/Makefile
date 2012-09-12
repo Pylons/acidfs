@@ -153,5 +153,5 @@ doctest:
 	      "results in $(BUILDDIR)/doctest/output.txt."
 
 _themes:
-	git submodule update --init
+	cd ..; git submodule update --init --recursive; cd docs;
 

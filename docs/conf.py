@@ -97,28 +97,20 @@ if 'sphinx-build' in ' '.join(sys.argv): # protect against dumb importers
     from subprocess import call, Popen, PIPE
 
     p = Popen('which git', shell=True, stdout=PIPE)
-
+    git = p.stdout.read().strip()
     cwd = os.getcwd()
     _themes = os.path.join(cwd, '_themes')
-    p = Popen('which git', shell=True, stdout=PIPE)
-    git = p.stdout.read().strip()
-    if not os.listdir(_themes):
-        call([git, 'submodule', '--init'], cwd=os.path.split(cwd)[0])
+
+    if not os.path.isdir(_themes):
+        call([git, 'clone', 'git://github.com/Pylons/pylons_sphinx_theme.git',
+             '_themes'])
     else:
-        call([git, 'submodule', 'update'], cwd=os.path.split(cwd)[0])
+        os.chdir(_themes)
+        call([git, 'checkout', 'master'])
+        call([git, 'pull'])
+        os.chdir(cwd)
 
     sys.path.append(os.path.abspath('_themes'))
-
-    parent = os.path.dirname(os.path.dirname(__file__))
-    sys.path.append(os.path.abspath(parent))
-    wd = os.getcwd()
-    os.chdir(parent)
-    os.system('%s setup.py test -q' % sys.executable)
-    os.chdir(wd)
-
-    for item in os.listdir(parent):
-        if item.endswith('.egg'):
-            sys.path.append(os.path.join(parent, item))
 
 html_theme_path = ['_themes']
 html_theme = 'pylons'
