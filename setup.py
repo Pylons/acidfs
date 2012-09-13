@@ -11,9 +11,9 @@ requires = [
 tests_require = requires + ['mock']
 
 if sys.version < '2.7':
-    tests_require += 'unittest2'
+    tests_require += ['unittest2']
 
-testing_extras = tests_require + ['nose', 'coverage']
+testing_extras = tests_require + ['nose', 'coverage', 'tox']
 doc_extras = ['Sphinx']
 
 here = os.path.abspath(os.path.dirname(__file__))

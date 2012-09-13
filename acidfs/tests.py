@@ -1,7 +1,7 @@
 try: #pragma no cover
     import unittest2 as unittest
     unittest # stfu pyflakes
-except ImportError:
+except ImportError: # pragma NO COVER
     import unittest
 
 import contextlib
@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import tempfile
 import transaction
+
+from acidfs import _check_output
 
 
 class FunctionalTests(unittest.TestCase):
@@ -196,7 +198,7 @@ class FunctionalTests(unittest.TestCase):
         fs.open('foo', 'w').write('Howdy!')
         transaction.commit()
 
-        output = subprocess.check_output(['git', 'log'], cwd=self.tmp)
+        output = _check_output(['git', 'log'], cwd=self.tmp)
         self.assertIn('Author: Fred Flintstone <fred@bed.rock>', output)
         self.assertIn('A test commit.', output)
 
@@ -209,7 +211,7 @@ class FunctionalTests(unittest.TestCase):
         fs.open('foo', 'w').write('Howdy!')
         transaction.commit()
 
-        output = subprocess.check_output(['git', 'log'], cwd=self.tmp)
+        output = _check_output(['git', 'log'], cwd=self.tmp)
         self.assertIn('Author: Fred Flintstone <fred@bed.rock>', output)
         self.assertIn('A test commit.', output)
 
@@ -444,9 +446,8 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         fs.open('foo', 'w').write('Hello!')
         open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
-        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
-                                cwd=self.tmp)
+        _check_output(['git', 'add', '.'], cwd=self.tmp)
+        _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
         with self.assertRaises(ConflictError):
             transaction.commit()
 
@@ -457,9 +458,8 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
         fs.open('foo', 'w').write('Party!')
         open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
-        subprocess.check_output(['git', 'add', '.'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'Haha!  First!'],
-                                cwd=self.tmp)
+        _check_output(['git', 'add', '.'], cwd=self.tmp)
+        _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
         with self.assertRaises(ConflictError):
             transaction.commit()
 
@@ -470,8 +470,8 @@ class FunctionalTests(unittest.TestCase):
 
         fs.open('bar', 'w').write('Howdy!\n')
         open(os.path.join(self.tmp, 'baz'), 'w').write('Ciao!\n')
-        subprocess.check_output(['git', 'add', 'baz'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
+        _check_output(['git', 'add', 'baz'], cwd=self.tmp)
+        _check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
         transaction.commit()
 
         self.assertTrue(fs.exists('foo'))
@@ -486,8 +486,8 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
 
         fs.rm('foo')
-        subprocess.check_output(['git', 'rm', 'baz'], cwd=self.tmp)
-        subprocess.check_output(['git', 'commit', '-m', 'gotcha'], cwd=self.tmp)
+        _check_output(['git', 'rm', 'baz'], cwd=self.tmp)
+        _check_output(['git', 'commit', '-m', 'gotcha'], cwd=self.tmp)
         transaction.commit()
 
         self.assertFalse(fs.exists('foo'))
@@ -636,7 +636,7 @@ class FunctionalTests(unittest.TestCase):
         self.assertFalse(fs2.exists('beez'))
 
         # Expecting two parents for commit since it's a merge
-        commit = subprocess.check_output(
+        commit = _check_output(
             ['git', 'cat-file', '-p', 'HEAD^{commit}'],
             cwd=self.tmp).split('\n')
         self.assertTrue(commit[1].startswith('parent'))

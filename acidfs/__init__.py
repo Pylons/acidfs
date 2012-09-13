@@ -71,7 +71,7 @@ class AcidFS(object):
                     else:
                         wdpath = repo
                         dbpath = os.path.join(repo, '.git')
-                    subprocess.check_output(args)
+                    _check_output(args)
                 else:
                     raise ValueError('No database found in %s' % dbpath)
 
@@ -384,7 +384,7 @@ class _Session(object):
 
         if os.path.exists(self.headref):
             # Existing head, get head revision
-            self.prev_commit = subprocess.check_output(
+            self.prev_commit = _check_output(
                 ['git', 'rev-list', '--max-count=1', head], cwd=db).strip()
             self.tree = _TreeNode.read(db, self.prev_commit)
         else:
@@ -396,7 +396,7 @@ class _Session(object):
         if self.tree.dirty:
             raise ConflictError(
                 "Cannot set base when changes already made in transaction.")
-        self.prev_commit = subprocess.check_output(
+        self.prev_commit = _check_output(
             ['git', 'rev-list', '--max-count=1', ref], cwd=self.db).strip()
         self.tree = _TreeNode.read(self.db, self.prev_commit)
 
@@ -455,9 +455,9 @@ class _Session(object):
             return
 
         # Find the merge base
-        current = subprocess.check_output(
+        current = _check_output(
             ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=self.db).strip()
-        merge_base = subprocess.check_output(
+        merge_base = _check_output(
             ['git', 'merge-base', current, commit_oid], cwd=self.db).strip()
 
         # If the merge base is the current commit, it means there have been no
@@ -490,7 +490,7 @@ class _Session(object):
             else:
                 args.append('--soft')
                 cwd = self.db
-            subprocess.check_output(args, cwd=cwd)
+            _check_output(args, cwd=cwd)
 
         else:
             # If not updating current head, just write the commit to the ref
@@ -548,8 +548,7 @@ class _Session(object):
         for parent in parents:
             args.append('-p')
             args.append(parent)
-        return subprocess.check_output(
-            args, cwd=self.db, env=gitenv).strip()
+        return _check_output(args, cwd=self.db, env=gitenv).strip()
 
 
     def merge(self, base_oid, current, tree_oid):
@@ -1002,3 +1001,25 @@ _MERGE_ADDED_IN_REMOTE = object()
 _MERGE_REMOVED_IN_REMOTE = object()
 _MERGE_CHANGED_IN_BOTH = object()
 _MERGE_ADDED_IN_BOTH = object()
+
+
+try:
+    # Python >= 2.7
+    _check_output = subprocess.check_output
+except AttributeError:  # pragma NO COVER
+    def _check_output(*popenargs, **kwargs):
+        """
+        Stolen straight from Python 2.7.
+        """
+        if 'stdout' in kwargs:
+            raise ValueError('stdout argument not allowed, it will be overridden.')
+        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = popenargs[0]
+            raise subprocess.CalledProcessError(retcode, cmd, output=output)
+        return output
+
