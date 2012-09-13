@@ -4,6 +4,7 @@ import io
 import logging
 import os
 import shutil
+import sys
 import subprocess
 import tempfile
 import traceback
@@ -496,9 +497,9 @@ class _Session(object):
             # If not updating current head, just write the commit to the ref
             # file directly.
             reffile = os.path.join(self.db, 'refs', 'heads', self.head)
-            with open(reffile, 'w') as f:
+            with open(reffile, 'wb') as f:
                 f.write(self.next_commit)
-                f.write('\n')
+                f.write(b'\n')
 
         self.close()
 
@@ -618,33 +619,33 @@ class _Session(object):
 
             while line:
                 if state is None: # default, scanning for start of a change
-                    if line[0].isalpha():
+                    if isalpha(line[0]):
                         # If first column is a letter, then we have the first
                         # line of a change, which describes the change.
                         line = line.strip()
-                        if line in ('added in local', 'removed in local',
-                                    'removed in both'):
+                        if line in (b'added in local', b'removed in local',
+                                    b'removed in both'):
                             # We don't care about changes to our current tree.
                             # We already know about those.
                             pass
 
-                        elif line == 'added in remote':
+                        elif line == b'added in remote':
                             # The head got a new file, we should grab it
                             state = _MERGE_ADDED_IN_REMOTE
                             extra_state = []
 
-                        elif line == 'removed in remote':
+                        elif line == b'removed in remote':
                             # File got deleted from head, remove it
                             state = _MERGE_REMOVED_IN_REMOTE
                             extra_state = []
 
-                        elif line == 'changed in both':
+                        elif line == b'changed in both':
                             # File was edited in both branches, see if we can
                             # patch
                             state = _MERGE_CHANGED_IN_BOTH
                             extra_state = []
 
-                        elif line == 'added in both':
+                        elif line == b'added in both':
                             state = _MERGE_ADDED_IN_BOTH
                             extra_state = []
 
@@ -653,17 +654,17 @@ class _Session(object):
                             raise ConflictError()
 
                 elif state is _MERGE_ADDED_IN_REMOTE:
-                    if line[0].isalpha() or line[0] == '@':
+                    if isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, only expecting one
                         expect(len(extra_state) == 1, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
-                        expect(whose == 'their', 'Unexpected whose: %s', whose)
-                        expect(mode == '100644', 'Unexpected mode: %s', mode)
-                        parsed = path.split('/')
+                        expect(whose == b'their', 'Unexpected whose: %s', whose)
+                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
+                        parsed = path.decode('ascii').split('/')
                         folder = self.find(parsed[:-1])
                         expect(isinstance(folder, _TreeNode),
                                'Not a folder: %s', path)
-                        folder.set(parsed[-1], ('blob', oid, None))
+                        folder.set(parsed[-1], (b'blob', oid, None))
                         state = extra_state = None
                         continue
 
@@ -671,21 +672,21 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_REMOVED_IN_REMOTE:
-                    if line[0].isalpha() or line[0] == '@':
+                    if isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
-                        expect(whose in ('our', 'base'), 'Unexpected whose: %s',
-                               whose)
-                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(whose in (b'our', b'base'),
+                               'Unexpected whose: %s', whose)
+                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         whose, mode, oid2, path2 = extra_state[1].split()
-                        expect(whose in ('our', 'base'), 'Unexpected whose: %s',
-                               whose)
-                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(whose in (b'our', b'base'),
+                               'Unexpected whose: %s', whose)
+                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         expect(oid == oid2, "SHA1s don't match")
                         expect(path == path2, "Paths don't match")
-                        path = path.split('/')
+                        path = path.decode('ascii').split('/')
                         folder = self.find(path[:-1])
                         expect(isinstance(folder, _TreeNode), "Not a folder")
                         folder.remove(path[-1])
@@ -696,22 +697,22 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_CHANGED_IN_BOTH:
-                    if line[0] == '@':
+                    if line.startswith(b'@'):
                         # Done collecting tree lines, expect three, one for base
                         # and one for each copy
                         expect(len(extra_state) == 3, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
-                        expect(whose in ('base', 'our', 'their'),
+                        expect(whose in (b'base', b'our', b'their'),
                                'Unexpected whose: %s', whose)
-                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         for extra_line in extra_state[1:]:
                             whose, mode, oid2, path2 = extra_line.split()
-                            expect(whose in ('base', 'our', 'their'),
+                            expect(whose in (b'base', b'our', b'their'),
                                    'Unexpected whose: %s', whose)
-                            expect(mode == '100644', 'Unexpected mode: %s',
+                            expect(mode == b'100644', 'Unexpected mode: %s',
                                    mode)
                             expect(path == path2, "Paths don't match")
-                        parsed = path.split('/')
+                        parsed = path.decode('ascii').split('/')
                         folder = self.find(parsed[:-1])
                         expect(isinstance(folder, _TreeNode), "Not a folder")
                         name = parsed[-1]
@@ -724,8 +725,8 @@ class _Session(object):
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE) as p:
                                 f = p.stdin
-                                while line and not line[0].isalpha():
-                                    if line[1:9] == '<<<<<<< ':
+                                while line and not isalpha(line[0]):
+                                    if line[1:9] == b'<<<<<<< ':
                                         raise ConflictError()
                                     f.write(line)
                                     line = stream.readline()
@@ -739,18 +740,18 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_ADDED_IN_BOTH:
-                    if line[0].isalpha() or line[0] == '@':
+                    if isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
-                        expect(whose in ('our', 'their'), 'Unexpected whose: %s',
+                        expect(whose in (b'our', b'their'), 'Unexpected whose: %s',
                                whose)
-                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         whose, mode, oid2, path2 = extra_state[1].split()
-                        expect(whose in ('our', 'their'), 'Unexpected whose: %s',
-                               whose)
-                        expect(mode == '100644', 'Unexpected mode: %s', mode)
+                        expect(whose in (b'our', b'their'),
+                               'Unexpected whose: %s', whose)
+                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         expect(path == path2, "Paths don't match")
                         # Either it's the same file or a different file.
                         if oid != oid2:
@@ -779,6 +780,8 @@ class _TreeNode(object):
                    stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = line.split()
+                name = str(name, 'ascii')
+                oid = str(oid, 'ascii')
                 contents[name] = (type, oid, None)
 
         return node
@@ -793,9 +796,9 @@ class _TreeNode(object):
         if not obj:
             return None
         type, oid, obj = obj
-        assert type in ('tree', 'blob')
+        assert type in (b'tree', b'blob')
         if not obj:
-            if type == 'tree':
+            if type == b'tree':
                 obj = _TreeNode.read(self.db, oid)
             else:
                 obj = _Blob(self.db, oid)
@@ -815,7 +818,7 @@ class _TreeNode(object):
         obj = _NewBlob(self.db, prev)
         obj.parent = self
         obj.name = name
-        self.contents[name] = ('blob', None, weakref.proxy(obj))
+        self.contents[name] = (b'blob', None, weakref.proxy(obj))
         self.set_dirty()
         return obj
 
@@ -823,7 +826,7 @@ class _TreeNode(object):
         node = _TreeNode(self.db)
         node.parent = self
         node.name = name
-        self.contents[name] = ('tree', None, node)
+        self.contents[name] = (b'tree', None, node)
         self.set_dirty()
         return node
 
@@ -849,17 +852,22 @@ class _TreeNode(object):
                 continue # Nothing to do
             if isinstance(obj, _NewBlob):
                 raise ValueError("Cannot commit transaction with open files.")
-            elif type == 'tree' and (obj.dirty or not oid):
+            elif type == b'tree' and (obj.dirty or not oid):
                 new_oid = obj.save()
-                self.contents[name] = ('tree', new_oid, None)
+                self.contents[name] = (b'tree', new_oid, None)
 
         # Save tree object out to database
         with _popen(['git', 'mktree'], cwd=self.db,
                    stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
             for name, (type, oid, obj) in self.contents.items():
-                mode = '100644' if type == 'blob' else '040000'
-                proc.stdin.write('%s %s %s\t%s' % (mode, type, oid, name))
-                proc.stdin.write('\n')
+                proc.stdin.write(b'100644' if type == b'blob' else b'040000')
+                proc.stdin.write(b' ')
+                proc.stdin.write(type)
+                proc.stdin.write(b' ')
+                proc.stdin.write(b(oid))
+                proc.stdin.write(b'\t')
+                proc.stdin.write(b(name))
+                proc.stdin.write(b'\n')
             proc.stdin.close()
             oid = proc.stdout.read().strip()
         return oid
@@ -909,7 +917,7 @@ class _NewBlob(io.RawIOBase):
             if retcode != 0:
                 raise subprocess.CalledProcessError(
                     retcode, 'git hash-object -w --stdin')
-            self.parent.contents[self.name] = ('blob', oid, None)
+            self.parent.contents[self.name] = (b'blob', oid, None)
 
     def writable(self):
         return True
@@ -965,7 +973,10 @@ def _popen(args, **kw):
     yield proc
     for stream in (proc.stdin, proc.stdout, proc.stderr):
         if stream is not None:
-            stream.close()
+            if not stream.closed:
+                if stream.readable():
+                    stream.read()
+                stream.close()
     retcode = proc.wait()
     if retcode != 0:
         raise subprocess.CalledProcessError(retcode, repr(args))
@@ -1024,3 +1035,18 @@ except AttributeError:  # pragma NO COVER
                 cmd = popenargs[0]
             raise subprocess.CalledProcessError(retcode, cmd, output=output)
         return output
+
+
+if sys.version_info[0] == 2:
+    b = lambda s: s
+    isalpha = lambda s: s.isalpha()
+else:
+    def b(s):
+        if isinstance(s, str):
+            s = bytes(s, 'ascii')
+        return s
+
+    aa, zz, AA, ZZ = ord('a'), ord('z'), ord('A'), ord('Z')
+    def isalpha(b):
+        return aa <= b <= zz or AA <= b <= ZZ
+

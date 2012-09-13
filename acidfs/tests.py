@@ -102,7 +102,7 @@ class FunctionalTests(unittest.TestCase):
             self.assertTrue(f.readable())
             self.assertEqual(f.read(), b'Hello\n')
         with open(actual_file) as f:
-            self.assertEqual(f.read(), b'Hello\n')
+            self.assertEqual(f.read(), 'Hello\n')
         transaction.commit() # Nothing to commit
 
     def test_read_write_file_in_subfolder(self):
@@ -122,7 +122,7 @@ class FunctionalTests(unittest.TestCase):
         with fs.open('foo/bar') as f:
             self.assertEqual(f.read(), b'Hello\n')
         with open(actual_file) as f:
-            self.assertEqual(f.read(), b'Hello\n')
+            self.assertEqual(f.read(), 'Hello\n')
 
     def test_read_write_file_in_subfolder_bare_repo(self):
         fs = self.make_one(bare=True)
@@ -199,8 +199,8 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
 
         output = _check_output(['git', 'log'], cwd=self.tmp)
-        self.assertIn('Author: Fred Flintstone <fred@bed.rock>', output)
-        self.assertIn('A test commit.', output)
+        self.assertIn(b'Author: Fred Flintstone <fred@bed.rock>', output)
+        self.assertIn(b'A test commit.', output)
 
     def test_commit_metadata_extended_info_for_user(self):
         fs = self.make_one()
@@ -212,8 +212,8 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
 
         output = _check_output(['git', 'log'], cwd=self.tmp)
-        self.assertIn('Author: Fred Flintstone <fred@bed.rock>', output)
-        self.assertIn('A test commit.', output)
+        self.assertIn(b'Author: Fred Flintstone <fred@bed.rock>', output)
+        self.assertIn(b'A test commit.', output)
 
     def test_modify_file(self):
         fs = self.make_one()
@@ -226,10 +226,10 @@ class FunctionalTests(unittest.TestCase):
             fprint(f, b"Hello!")
             self.assertEqual(fs.open('foo').read(), b'Howdy!\n')
         self.assertEqual(fs.open('foo').read(), b'Hello!\n')
-        self.assertEqual(open(path).read(), b'Howdy!\n')
+        self.assertEqual(open(path).read(), 'Howdy!\n')
         transaction.commit()
 
-        self.assertEqual(open(path).read(), b'Hello!\n')
+        self.assertEqual(open(path).read(), 'Hello!\n')
 
     def test_error_writing_blob(self):
         fs = self.make_one()
@@ -255,13 +255,13 @@ class FunctionalTests(unittest.TestCase):
         with fs.open('foo', 'a') as f:
             fprint(f, b'Daddy!')
             self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\n')
-            self.assertEqual(open(path).read(), b'Hello!\n')
+            self.assertEqual(open(path).read(), 'Hello!\n')
         self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\nDaddy!\n')
-        self.assertEqual(open(path).read(), b'Hello!\n')
+        self.assertEqual(open(path).read(), 'Hello!\n')
 
         transaction.commit()
         self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\nDaddy!\n')
-        self.assertEqual(open(path).read(), b'Hello!\nDaddy!\n')
+        self.assertEqual(open(path).read(), 'Hello!\nDaddy!\n')
 
     def test_rm(self):
         fs = self.make_one()
@@ -373,13 +373,13 @@ class FunctionalTests(unittest.TestCase):
         self.assertFalse(fs.exists('one/b/foo'))
         self.assertEqual(fs.open('one/a/bar').read(), b'Howdy!')
         self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'foo')))
-        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), b'Hello!')
+        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), 'Hello!')
 
         transaction.commit()
         self.assertFalse(fs.exists('one/b/foo'))
-        self.assertEqual(fs.open('one/a/bar').read(), 'Howdy!')
+        self.assertEqual(fs.open('one/a/bar').read(), b'Howdy!')
         self.assertFalse(pexists(j(self.tmp, 'one', 'b', 'foo')))
-        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), b'Howdy!')
+        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), 'Howdy!')
 
         fs.mv('one/a', 'one/b')
         self.assertFalse(fs.exists('one/a'))
@@ -445,7 +445,7 @@ class FunctionalTests(unittest.TestCase):
         from acidfs import ConflictError
         fs = self.make_one()
         fs.open('foo', 'w').write(b'Hello!')
-        open(os.path.join(self.tmp, 'foo'), 'w').write(b'Howdy!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
         _check_output(['git', 'add', '.'], cwd=self.tmp)
         _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
         with self.assertRaises(ConflictError):
@@ -457,7 +457,7 @@ class FunctionalTests(unittest.TestCase):
         fs.open('foo', 'w').write(b'Hello!')
         transaction.commit()
         fs.open('foo', 'w').write(b'Party!')
-        open(os.path.join(self.tmp, 'foo'), 'w').write(b'Howdy!')
+        open(os.path.join(self.tmp, 'foo'), 'wb').write(b'Howdy!')
         _check_output(['git', 'add', '.'], cwd=self.tmp)
         _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
         with self.assertRaises(ConflictError):
@@ -469,7 +469,7 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
 
         fs.open('bar', 'w').write(b'Howdy!\n')
-        open(os.path.join(self.tmp, 'baz'), 'w').write(b'Ciao!\n')
+        open(os.path.join(self.tmp, 'baz'), 'w').write('Ciao!\n')
         _check_output(['git', 'add', 'baz'], cwd=self.tmp)
         _check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
         transaction.commit()
@@ -656,4 +656,4 @@ class PopenTests(unittest.TestCase):
 
 def fprint(f, s):
     f.write(s)
-    f.write('\n')
+    f.write(b'\n')
