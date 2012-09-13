@@ -15,17 +15,27 @@ log = logging.getLogger(__name__)
 
 class AcidFS(object):
     """
-    Exposes a view of a filesystem with ACID semantics usable via the
-    `transaction <http://pypi.python.org/pypi/transaction>`_ package.  The
-    filesystem is backed by a `Git <http://git-scm.com/>`_ repository.  An
-    instance of `AcidFS` is not thread safe and should not be shared by multiple
-    concurrent contexts.
+    An instance of `AcidFS` exposes a transactional filesystem view of a `Git`
+    repository.  Instances of `AcidFS` are not threadsafe and should not be
+    shared across threads, greenlets, etc.
 
-    Constructor Arguments
+    **Paths**
 
-    ``path``
+    Many methods take a `path` as an argument.  All paths use forward slash `/`
+    as a separator, regardless of the path separator of the
+    underlying operating system.  The path `/` represents the root folder of
+    the repository.  Paths may be relative or absolute: paths beginning with a
+    `/` are absolute with respect to the repository root, paths not beginning
+    with a `/` are relative to the current working directory.  The current
+    working directory always starts at the root of the repository.  The current
+    working directory can be changed using the :meth:`chdir` and
+    :meth:`cd` methods.
 
-       The path in the real, local fileystem of the repository.
+    **Constructor Arguments**
+
+    ``repo``
+
+       The path to the repository in the real, local filesystem.
 
     ``head``
 
@@ -47,20 +57,20 @@ class AcidFS(object):
     session = None
     _cwd = ()
 
-    def __init__(self, path, head='HEAD', create=True, bare=False):
-        wdpath = path
-        dbpath = os.path.join(path, '.git')
+    def __init__(self, repo, head='HEAD', create=True, bare=False):
+        wdpath = repo
+        dbpath = os.path.join(repo, '.git')
         if not os.path.exists(dbpath):
             wdpath = None
-            dbpath = path
+            dbpath = repo
             if not os.path.exists(os.path.join(dbpath, 'HEAD')):
                 if create:
-                    args = ['git', 'init', path]
+                    args = ['git', 'init', repo]
                     if bare:
                         args.append('--bare')
                     else:
-                        wdpath = path
-                        dbpath = os.path.join(path, '.git')
+                        wdpath = repo
+                        dbpath = os.path.join(repo, '.git')
                     subprocess.check_output(args)
                 else:
                     raise ValueError('No database found in %s' % dbpath)
@@ -143,13 +153,13 @@ class AcidFS(object):
 
     def open(self, path, mode='r'):
         """
-        Open a file for reading or writing.  Supported modes are::
+        Open a file for reading or writing.  Supported modes are:
 
-            + 'r', file is opened for reading
-            + 'w', file opened for writing
-            + 'a', file is opened for writing in append mode
+        + `r`, file is opened for reading
+        + `w`, file opened for writing
+        + `a`, file is opened for writing in append mode
 
-        'b' may appear in any mode but is ignored.  Effectively all files are
+        `b` may appear in any mode but is ignored.  Effectively all files are
         opened in binary mode, which should have no impact for platforms other
         than Windows, which is not supported by this library anyway.
 
@@ -197,8 +207,8 @@ class AcidFS(object):
 
     def listdir(self, path=''):
         """
-        Return list of files in directory indicated py `path`.  If `path` is
-        omitted, the current working directory is used.
+        Return list of files in indicated directory.  If `path` is omitted, the
+        current working directory is used.
         """
         session = self._session()
         obj = session.find(self._mkpath(path))
