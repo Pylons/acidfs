@@ -42,7 +42,7 @@ class FunctionalTests(unittest.TestCase):
         try:
             yield
             raise AssertionError('IOError not raised') # pragma no cover
-        except IOError, e:
+        except IOError as e:
             self.assertEqual(e.errno, 2)
             self.assertEqual(e.strerror, 'No such file or directory')
             self.assertEqual(e.filename, path)
@@ -52,7 +52,7 @@ class FunctionalTests(unittest.TestCase):
         try:
             yield
             raise AssertionError('IOError not raised') # pragma no cover
-        except IOError, e:
+        except IOError as e:
             self.assertEqual(e.errno, 21)
             self.assertEqual(e.strerror, 'Is a directory')
             self.assertEqual(e.filename, path)
@@ -62,7 +62,7 @@ class FunctionalTests(unittest.TestCase):
         try:
             yield
             raise AssertionError('IOError not raised') # pragma no cover
-        except IOError, e:
+        except IOError as e:
             self.assertEqual(e.errno, 20)
             self.assertEqual(e.strerror, 'Not a directory')
             self.assertEqual(e.filename, path)
@@ -72,7 +72,7 @@ class FunctionalTests(unittest.TestCase):
         try:
             yield
             raise AssertionError('IOError not raised') # pragma no cover
-        except IOError, e:
+        except IOError as e:
             self.assertEqual(e.errno, 17)
             self.assertEqual(e.strerror, 'File exists')
             self.assertEqual(e.filename, path)
@@ -82,7 +82,7 @@ class FunctionalTests(unittest.TestCase):
         try:
             yield
             raise AssertionError('IOError not raised') # pragma no cover
-        except IOError, e:
+        except IOError as e:
             self.assertEqual(e.errno, 39)
             self.assertEqual(e.strerror, 'Directory not empty')
             self.assertEqual(e.filename, path)
