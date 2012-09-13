@@ -91,7 +91,7 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:
             self.assertTrue(f.writable())
-            print >> f, b'Hello'
+            fprint(f, b'Hello')
             with self.assertNoSuchFileOrDirectory('foo'):
                 fs.open('foo')
         self.assertEqual(fs.open('foo').read(), b'Hello\n')
@@ -111,7 +111,7 @@ class FunctionalTests(unittest.TestCase):
         fs.mkdir('foo')
         self.assertTrue(fs.isdir('foo'))
         with fs.open('foo/bar', 'w') as f:
-            print >> f, b'Hello'
+            fprint(f, b'Hello')
         with fs.open('foo/bar') as f:
             self.assertEqual(f.read(), b'Hello\n')
         actual_file = os.path.join(self.tmp, 'foo', 'bar')
@@ -130,7 +130,7 @@ class FunctionalTests(unittest.TestCase):
         fs.mkdir('foo')
         self.assertTrue(fs.isdir('foo'))
         with fs.open('foo/bar', 'w') as f:
-            print >> f, b'Hello'
+            fprint(f, b'Hello')
         with fs.open('foo/bar') as f:
             self.assertEqual(f.read(), b'Hello\n')
         transaction.commit()
@@ -168,7 +168,7 @@ class FunctionalTests(unittest.TestCase):
             fs.open('foo', 'wtf')
 
         with fs.open('bar', 'w') as f:
-            print >> f, b'Howdy!'
+            fprint(f, b'Howdy!')
             with self.assertRaises(ValueError) as cm:
                 transaction.commit()
             self.assertEqual(str(cm.exception),
@@ -218,12 +218,12 @@ class FunctionalTests(unittest.TestCase):
     def test_modify_file(self):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:
-            print >> f, b"Howdy!"
+            fprint(f, b"Howdy!")
         transaction.commit()
 
         path = os.path.join(self.tmp, 'foo')
         with fs.open('foo', 'w') as f:
-            print >> f, b"Hello!"
+            fprint(f, b"Hello!")
             self.assertEqual(fs.open('foo').read(), b'Howdy!\n')
         self.assertEqual(fs.open('foo').read(), b'Hello!\n')
         self.assertEqual(open(path).read(), b'Howdy!\n')
@@ -236,7 +236,7 @@ class FunctionalTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             with fs.open('foo', 'w') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
-                print >> f, b'Howdy!'
+                fprint(f, b'Howdy!')
 
     def test_error_reading_blob(self):
         fs = self.make_one()
@@ -253,7 +253,7 @@ class FunctionalTests(unittest.TestCase):
 
         path = os.path.join(self.tmp, 'foo')
         with fs.open('foo', 'a') as f:
-            print >> f, b'Daddy!'
+            fprint(f, b'Daddy!')
             self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\n')
             self.assertEqual(open(path).read(), b'Hello!\n')
         self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\nDaddy!\n')
@@ -548,25 +548,25 @@ class FunctionalTests(unittest.TestCase):
     def test_merge_file(self):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:
-            print >> f, b'One'
-            print >> f, b'Two'
-            print >> f, b'Three'
-            print >> f, b'Four'
-            print >> f, b'Five'
+            fprint(f, b'One')
+            fprint(f, b'Two')
+            fprint(f, b'Three')
+            fprint(f, b'Four')
+            fprint(f, b'Five')
         transaction.commit()
 
         base = fs.get_base()
         with fs.open('foo', 'w') as f:
-            print >> f, b'One'
-            print >> f, b'Dos'
-            print >> f, b'Three'
-            print >> f, b'Four'
-            print >> f, b'Five'
+            fprint(f, b'One')
+            fprint(f, b'Dos')
+            fprint(f, b'Three')
+            fprint(f, b'Four')
+            fprint(f, b'Five')
         transaction.commit()
 
         fs.set_base(base)
         with fs.open('foo', 'a') as f:
-            print >> f, b'Sei'
+            fprint(f, b'Sei')
         transaction.commit()
 
         self.assertEqual(list(fs.open('foo').readlines()), [
@@ -652,3 +652,8 @@ class PopenTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             with _popen(['what', 'ever']):
                 pass
+
+
+def fprint(f, s):
+    f.write(s)
+    f.write('\n')

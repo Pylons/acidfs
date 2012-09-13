@@ -5,7 +5,6 @@ import logging
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import traceback
 import transaction
@@ -498,7 +497,8 @@ class _Session(object):
             # file directly.
             reffile = os.path.join(self.db, 'refs', 'heads', self.head)
             with open(reffile, 'w') as f:
-                print >> f, self.next_commit
+                f.write(self.next_commit)
+                f.write('\n')
 
         self.close()
 
@@ -858,7 +858,8 @@ class _TreeNode(object):
                    stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
             for name, (type, oid, obj) in self.contents.items():
                 mode = '100644' if type == 'blob' else '040000'
-                print >> proc.stdin, '%s %s %s\t%s' % (mode, type, oid, name)
+                proc.stdin.write('%s %s %s\t%s' % (mode, type, oid, name))
+                proc.stdin.write('\n')
             proc.stdin.close()
             oid = proc.stdout.read().strip()
         return oid
