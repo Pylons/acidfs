@@ -91,18 +91,18 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:
             self.assertTrue(f.writable())
-            print >> f, 'Hello'
+            print >> f, b'Hello'
             with self.assertNoSuchFileOrDirectory('foo'):
                 fs.open('foo')
-        self.assertEqual(fs.open('foo').read(), 'Hello\n')
+        self.assertEqual(fs.open('foo').read(), b'Hello\n')
         actual_file = os.path.join(self.tmp, 'foo')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
         with fs.open('foo') as f:
             self.assertTrue(f.readable())
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
         with open(actual_file) as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
         transaction.commit() # Nothing to commit
 
     def test_read_write_file_in_subfolder(self):
@@ -111,18 +111,18 @@ class FunctionalTests(unittest.TestCase):
         fs.mkdir('foo')
         self.assertTrue(fs.isdir('foo'))
         with fs.open('foo/bar', 'w') as f:
-            print >> f, 'Hello'
+            print >> f, b'Hello'
         with fs.open('foo/bar') as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
         actual_file = os.path.join(self.tmp, 'foo', 'bar')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
         self.assertTrue(fs.isdir('foo'))
         self.assertFalse(fs.isdir('foo/bar'))
         with fs.open('foo/bar') as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
         with open(actual_file) as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
 
     def test_read_write_file_in_subfolder_bare_repo(self):
         fs = self.make_one(bare=True)
@@ -130,14 +130,14 @@ class FunctionalTests(unittest.TestCase):
         fs.mkdir('foo')
         self.assertTrue(fs.isdir('foo'))
         with fs.open('foo/bar', 'w') as f:
-            print >> f, 'Hello'
+            print >> f, b'Hello'
         with fs.open('foo/bar') as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
         transaction.commit()
         self.assertTrue(fs.isdir('foo'))
         self.assertFalse(fs.isdir('foo/bar'))
         with fs.open('foo/bar') as f:
-            self.assertEqual(f.read(), 'Hello\n')
+            self.assertEqual(f.read(), b'Hello\n')
 
     def test_open_edge_cases(self):
         fs = self.make_one()
@@ -159,7 +159,7 @@ class FunctionalTests(unittest.TestCase):
         with self.assertIsADirectory('foo'):
             fs.open('foo', 'w')
 
-        fs.open('bar', 'w').write('Howdy')
+        fs.open('bar', 'w').write(b'Howdy')
 
         with self.assertNotADirectory('bar/foo'):
             fs.open('bar/foo', 'w')
@@ -168,7 +168,7 @@ class FunctionalTests(unittest.TestCase):
             fs.open('foo', 'wtf')
 
         with fs.open('bar', 'w') as f:
-            print >> f, 'Howdy!'
+            print >> f, b'Howdy!'
             with self.assertRaises(ValueError) as cm:
                 transaction.commit()
             self.assertEqual(str(cm.exception),
@@ -180,7 +180,7 @@ class FunctionalTests(unittest.TestCase):
         with self.assertNoSuchFileOrDirectory('foo/bar'):
             fs.mkdir('foo/bar')
 
-        fs.open('foo', 'w').write('Howdy!')
+        fs.open('foo', 'w').write(b'Howdy!')
 
         with self.assertNotADirectory('foo/bar'):
             fs.mkdir('foo/bar')
@@ -195,7 +195,7 @@ class FunctionalTests(unittest.TestCase):
         tx.note("A test commit.")
         tx.setUser('Fred Flintstone')
         tx.setExtendedInfo('email', 'fred@bed.rock')
-        fs.open('foo', 'w').write('Howdy!')
+        fs.open('foo', 'w').write(b'Howdy!')
         transaction.commit()
 
         output = _check_output(['git', 'log'], cwd=self.tmp)
@@ -208,7 +208,7 @@ class FunctionalTests(unittest.TestCase):
         tx.note("A test commit.")
         tx.setExtendedInfo('user', 'Fred Flintstone')
         tx.setExtendedInfo('email', 'fred@bed.rock')
-        fs.open('foo', 'w').write('Howdy!')
+        fs.open('foo', 'w').write(b'Howdy!')
         transaction.commit()
 
         output = _check_output(['git', 'log'], cwd=self.tmp)
@@ -218,29 +218,29 @@ class FunctionalTests(unittest.TestCase):
     def test_modify_file(self):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:
-            print >> f, "Howdy!"
+            print >> f, b"Howdy!"
         transaction.commit()
 
         path = os.path.join(self.tmp, 'foo')
         with fs.open('foo', 'w') as f:
-            print >> f, "Hello!"
-            self.assertEqual(fs.open('foo').read(), 'Howdy!\n')
-        self.assertEqual(fs.open('foo').read(), 'Hello!\n')
-        self.assertEqual(open(path).read(), 'Howdy!\n')
+            print >> f, b"Hello!"
+            self.assertEqual(fs.open('foo').read(), b'Howdy!\n')
+        self.assertEqual(fs.open('foo').read(), b'Hello!\n')
+        self.assertEqual(open(path).read(), b'Howdy!\n')
         transaction.commit()
 
-        self.assertEqual(open(path).read(), 'Hello!\n')
+        self.assertEqual(open(path).read(), b'Hello!\n')
 
     def test_error_writing_blob(self):
         fs = self.make_one()
         with self.assertRaises(subprocess.CalledProcessError):
             with fs.open('foo', 'w') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
-                print >> f, 'Howdy!'
+                print >> f, b'Howdy!'
 
     def test_error_reading_blob(self):
         fs = self.make_one()
-        fs.open('foo', 'w').write('a' * 1000)
+        fs.open('foo', 'w').write(b'a' * 1000)
         with self.assertRaises(subprocess.CalledProcessError):
             with fs.open('foo', 'r') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
@@ -248,24 +248,24 @@ class FunctionalTests(unittest.TestCase):
 
     def test_append(self):
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!\n')
+        fs.open('foo', 'w').write(b'Hello!\n')
         transaction.commit()
 
         path = os.path.join(self.tmp, 'foo')
         with fs.open('foo', 'a') as f:
-            print >> f, 'Daddy!'
-            self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\n')
-            self.assertEqual(open(path).read(), 'Hello!\n')
-        self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\nDaddy!\n')
-        self.assertEqual(open(path).read(), 'Hello!\n')
+            print >> f, b'Daddy!'
+            self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\n')
+            self.assertEqual(open(path).read(), b'Hello!\n')
+        self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\nDaddy!\n')
+        self.assertEqual(open(path).read(), b'Hello!\n')
 
         transaction.commit()
-        self.assertEqual(fs.open('foo', 'rb').read(), 'Hello!\nDaddy!\n')
-        self.assertEqual(open(path).read(), 'Hello!\nDaddy!\n')
+        self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\nDaddy!\n')
+        self.assertEqual(open(path).read(), b'Hello!\nDaddy!\n')
 
     def test_rm(self):
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello\n')
+        fs.open('foo', 'w').write(b'Hello\n')
         transaction.commit()
 
         path = os.path.join(self.tmp, 'foo')
@@ -286,7 +286,7 @@ class FunctionalTests(unittest.TestCase):
     def test_rmdir(self):
         fs = self.make_one()
         fs.mkdir('foo')
-        fs.open('foo/bar', 'w').write('Hello\n')
+        fs.open('foo/bar', 'w').write(b'Hello\n')
         transaction.commit()
 
         path = os.path.join(self.tmp, 'foo')
@@ -308,7 +308,7 @@ class FunctionalTests(unittest.TestCase):
     def test_rmtree(self):
         fs = self.make_one()
         fs.mkdirs('foo/bar')
-        fs.open('foo/bar/baz', 'w').write('Hello\n')
+        fs.open('foo/bar/baz', 'w').write(b'Hello\n')
         with self.assertNotADirectory('foo/bar/baz/boz'):
             fs.mkdirs('foo/bar/baz/boz')
         transaction.commit()
@@ -333,7 +333,7 @@ class FunctionalTests(unittest.TestCase):
     def test_empty(self):
         fs = self.make_one()
         self.assertTrue(fs.empty('/'))
-        fs.open('foo', 'w').write('Hello!')
+        fs.open('foo', 'w').write(b'Hello!')
         self.assertFalse(fs.empty('/'))
         with self.assertNotADirectory('foo'):
             fs.empty('foo')
@@ -344,8 +344,8 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         fs.mkdirs('one/a')
         fs.mkdirs('one/b')
-        fs.open('one/a/foo', 'w').write('Hello!')
-        fs.open('one/b/foo', 'w').write('Howdy!')
+        fs.open('one/a/foo', 'w').write(b'Hello!')
+        fs.open('one/b/foo', 'w').write(b'Howdy!')
         transaction.commit()
 
         with self.assertNoSuchFileOrDirectory('/'):
@@ -371,15 +371,15 @@ class FunctionalTests(unittest.TestCase):
 
         fs.mv('one/b/foo', 'one/a/bar')
         self.assertFalse(fs.exists('one/b/foo'))
-        self.assertEqual(fs.open('one/a/bar').read(), 'Howdy!')
+        self.assertEqual(fs.open('one/a/bar').read(), b'Howdy!')
         self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'foo')))
-        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), 'Hello!')
+        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), b'Hello!')
 
         transaction.commit()
         self.assertFalse(fs.exists('one/b/foo'))
         self.assertEqual(fs.open('one/a/bar').read(), 'Howdy!')
         self.assertFalse(pexists(j(self.tmp, 'one', 'b', 'foo')))
-        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), 'Howdy!')
+        self.assertEqual(open(j(self.tmp, 'one', 'a', 'bar')).read(), b'Howdy!')
 
         fs.mv('one/a', 'one/b')
         self.assertFalse(fs.exists('one/a'))
@@ -397,7 +397,7 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         fs.mkdirs('one/a')
         fs.mkdir('two')
-        fs.open('three', 'w').write('Hello!')
+        fs.open('three', 'w').write(b'Hello!')
 
         with self.assertNoSuchFileOrDirectory('bar'):
             fs.listdir('bar')
@@ -415,8 +415,8 @@ class FunctionalTests(unittest.TestCase):
 
         fs.mkdirs('one/a')
         fs.mkdir('two')
-        fs.open('three', 'w').write('Hello!')
-        fs.open('two/three', 'w').write('Haha!')
+        fs.open('three', 'w').write(b'Hello!')
+        fs.open('two/three', 'w').write(b'Haha!')
 
         self.assertEqual(fs.cwd(), '/')
         self.assertEqual(sorted(fs.listdir()), ['one', 'three', 'two'])
@@ -435,8 +435,8 @@ class FunctionalTests(unittest.TestCase):
         with fs.cd('/two'):
             self.assertEqual(fs.cwd(), '/two')
             self.assertEqual(fs.listdir(), ['three'])
-            self.assertEqual(fs.open('three').read(), 'Haha!')
-            self.assertEqual(fs.open('/three').read(), 'Hello!')
+            self.assertEqual(fs.open('three').read(), b'Haha!')
+            self.assertEqual(fs.open('/three').read(), b'Hello!')
 
         self.assertEqual(fs.cwd(), '/one')
         self.assertEqual(fs.listdir(), ['a'])
@@ -444,8 +444,8 @@ class FunctionalTests(unittest.TestCase):
     def test_conflict_error_on_first_commit(self):
         from acidfs import ConflictError
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!')
-        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
+        fs.open('foo', 'w').write(b'Hello!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write(b'Howdy!')
         _check_output(['git', 'add', '.'], cwd=self.tmp)
         _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
         with self.assertRaises(ConflictError):
@@ -454,10 +454,10 @@ class FunctionalTests(unittest.TestCase):
     def test_unable_to_merge_file(self):
         from acidfs import ConflictError
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!')
+        fs.open('foo', 'w').write(b'Hello!')
         transaction.commit()
-        fs.open('foo', 'w').write('Party!')
-        open(os.path.join(self.tmp, 'foo'), 'w').write('Howdy!')
+        fs.open('foo', 'w').write(b'Party!')
+        open(os.path.join(self.tmp, 'foo'), 'w').write(b'Howdy!')
         _check_output(['git', 'add', '.'], cwd=self.tmp)
         _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
         with self.assertRaises(ConflictError):
@@ -465,11 +465,11 @@ class FunctionalTests(unittest.TestCase):
 
     def test_merge_add_file(self):
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello!\n')
+        fs.open('foo', 'w').write(b'Hello!\n')
         transaction.commit()
 
-        fs.open('bar', 'w').write('Howdy!\n')
-        open(os.path.join(self.tmp, 'baz'), 'w').write('Ciao!\n')
+        fs.open('bar', 'w').write(b'Howdy!\n')
+        open(os.path.join(self.tmp, 'baz'), 'w').write(b'Ciao!\n')
         _check_output(['git', 'add', 'baz'], cwd=self.tmp)
         _check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
         transaction.commit()
@@ -480,9 +480,9 @@ class FunctionalTests(unittest.TestCase):
 
     def test_merge_rm_file(self):
         fs = self.make_one(head='master')
-        fs.open('foo', 'w').write('Hello\n')
-        fs.open('bar', 'w').write('Grazie\n')
-        fs.open('baz', 'w').write('Prego\n')
+        fs.open('foo', 'w').write(b'Hello\n')
+        fs.open('bar', 'w').write(b'Grazie\n')
+        fs.open('baz', 'w').write(b'Prego\n')
         transaction.commit()
 
         fs.rm('foo')
@@ -496,8 +496,8 @@ class FunctionalTests(unittest.TestCase):
 
     def test_merge_rm_same_file(self):
         fs = self.make_one(head='master')
-        fs.open('foo', 'w').write('Hello\n')
-        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('foo', 'w').write(b'Hello\n')
+        fs.open('bar', 'w').write(b'Grazie\n')
         transaction.commit()
 
         base = fs.get_base()
@@ -507,7 +507,7 @@ class FunctionalTests(unittest.TestCase):
         fs.set_base(base)
         fs.rm('foo')
         # Do something else besides, so commit has different sha1
-        fs.open('baz', 'w').write('Prego\n')
+        fs.open('baz', 'w').write(b'Prego\n')
         transaction.commit()
 
         self.assertFalse(fs.exists('foo'))
@@ -515,76 +515,76 @@ class FunctionalTests(unittest.TestCase):
 
     def test_merge_add_same_file(self):
         fs = self.make_one(head='master')
-        fs.open('foo', 'w').write('Hello\n')
+        fs.open('foo', 'w').write(b'Hello\n')
         transaction.commit()
 
         base = fs.get_base()
-        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('bar', 'w').write(b'Grazie\n')
         transaction.commit()
 
         fs.set_base(base)
-        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('bar', 'w').write(b'Grazie\n')
         # Do something else besides, so commit has different sha1
-        fs.open('baz', 'w').write('Prego\n')
+        fs.open('baz', 'w').write(b'Prego\n')
         transaction.commit()
 
-        self.assertEqual(fs.open('bar').read(), 'Grazie\n')
+        self.assertEqual(fs.open('bar').read(), b'Grazie\n')
 
     def test_merge_add_different_file_same_path(self):
         from acidfs import ConflictError
         fs = self.make_one(head='master')
-        fs.open('foo', 'w').write('Hello\n')
+        fs.open('foo', 'w').write(b'Hello\n')
         transaction.commit()
 
         base = fs.get_base()
-        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('bar', 'w').write(b'Grazie\n')
         transaction.commit()
 
         fs.set_base(base)
-        fs.open('bar', 'w').write('Prego\n')
+        fs.open('bar', 'w').write(b'Prego\n')
         with self.assertRaises(ConflictError):
             transaction.commit()
 
     def test_merge_file(self):
         fs = self.make_one()
         with fs.open('foo', 'w') as f:
-            print >> f, 'One'
-            print >> f, 'Two'
-            print >> f, 'Three'
-            print >> f, 'Four'
-            print >> f, 'Five'
+            print >> f, b'One'
+            print >> f, b'Two'
+            print >> f, b'Three'
+            print >> f, b'Four'
+            print >> f, b'Five'
         transaction.commit()
 
         base = fs.get_base()
         with fs.open('foo', 'w') as f:
-            print >> f, 'One'
-            print >> f, 'Dos'
-            print >> f, 'Three'
-            print >> f, 'Four'
-            print >> f, 'Five'
+            print >> f, b'One'
+            print >> f, b'Dos'
+            print >> f, b'Three'
+            print >> f, b'Four'
+            print >> f, b'Five'
         transaction.commit()
 
         fs.set_base(base)
         with fs.open('foo', 'a') as f:
-            print >> f, 'Sei'
+            print >> f, b'Sei'
         transaction.commit()
 
         self.assertEqual(list(fs.open('foo').readlines()), [
-            'One\n',
-            'Dos\n',
-            'Three\n',
-            'Four\n',
-            'Five\n',
-            'Sei\n'])
+            b'One\n',
+            b'Dos\n',
+            b'Three\n',
+            b'Four\n',
+            b'Five\n',
+            b'Sei\n'])
 
     def test_set_base(self):
         from acidfs import ConflictError
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello\n')
+        fs.open('foo', 'w').write(b'Hello\n')
         transaction.commit()
 
         base = fs.get_base()
-        fs.open('bar', 'w').write('Grazie\n')
+        fs.open('bar', 'w').write(b'Grazie\n')
         with self.assertRaises(ConflictError):
             fs.set_base('whatever')
         transaction.commit()
@@ -592,7 +592,7 @@ class FunctionalTests(unittest.TestCase):
         fs.set_base(base)
         self.assertTrue(fs.exists('foo'))
         self.assertFalse(fs.exists('bar'))
-        fs.open('baz', 'w').write('Prego\n')
+        fs.open('baz', 'w').write(b'Prego\n')
         transaction.commit()
 
         self.assertTrue(fs.exists('foo'))
@@ -601,29 +601,29 @@ class FunctionalTests(unittest.TestCase):
 
     def test_use_other_branch(self):
         fs = self.make_one(head='foo')
-        fs.open('foo', 'w').write('Hello\n')
+        fs.open('foo', 'w').write(b'Hello\n')
         transaction.commit()
 
         fs2 = self.make_one()
-        fs2.open('foo', 'w').write('Howdy!\n')
+        fs2.open('foo', 'w').write(b'Howdy!\n')
         transaction.commit()
 
-        self.assertEqual(fs.open('foo').read(), 'Hello\n')
-        self.assertEqual(fs2.open('foo').read(), 'Howdy!\n')
+        self.assertEqual(fs.open('foo').read(), b'Hello\n')
+        self.assertEqual(fs2.open('foo').read(), b'Howdy!\n')
 
     def test_branch_and_then_merge(self):
         fs = self.make_one()
-        fs.open('foo', 'w').write('Hello')
+        fs.open('foo', 'w').write(b'Hello')
         transaction.commit()
 
         fs2 = self.make_one(head='abranch')
         fs2.set_base(fs.get_base())
-        fs2.open('bar', 'w').write('Ciao')
-        fs.open('baz', 'w').write('Hola')
+        fs2.open('bar', 'w').write(b'Ciao')
+        fs.open('baz', 'w').write(b'Hola')
         transaction.commit()
 
         fs.set_base('abranch')
-        fs.open('beez', 'w').write('buzz')
+        fs.open('beez', 'w').write(b'buzz')
         transaction.commit()
 
         self.assertTrue(fs.exists('foo'))
