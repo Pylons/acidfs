@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import traceback
 import transaction
@@ -91,7 +92,7 @@ class AcidFS(object):
         if path == '.':
             parsed = []
         else:
-            parsed = filter(None, path.split('/'))
+            parsed = list(filter(None, path.split('/')))
         if not path.startswith('/'):
             parsed = type(parsed)(self._cwd) + parsed
         return parsed
@@ -1022,4 +1023,3 @@ except AttributeError:  # pragma NO COVER
                 cmd = popenargs[0]
             raise subprocess.CalledProcessError(retcode, cmd, output=output)
         return output
-
