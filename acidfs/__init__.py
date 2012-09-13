@@ -720,7 +720,7 @@ class _Session(object):
                         expect(isinstance(blob, _Blob), "Not a blob")
                         with _tempfile() as tmp:
                             shutil.copyfileobj(blob.open(), open(tmp, 'wb'))
-                            with _popen(['patch', tmp, '-'],
+                            with _popen(['patch', '-s', tmp, '-'],
                                        stdin=subprocess.PIPE,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE) as p:
@@ -973,10 +973,7 @@ def _popen(args, **kw):
     yield proc
     for stream in (proc.stdin, proc.stdout, proc.stderr):
         if stream is not None:
-            if not stream.closed:
-                if stream.readable():
-                    stream.read()
-                stream.close()
+            stream.close()
     retcode = proc.wait()
     if retcode != 0:
         raise subprocess.CalledProcessError(retcode, repr(args))
