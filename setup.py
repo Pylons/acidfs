@@ -3,7 +3,7 @@ from setuptools import setup
 from setuptools import find_packages
 import sys
 
-VERSION = '1.0a1'
+VERSION = '1.0b1'
 
 requires = [
     'transaction',
@@ -19,7 +19,7 @@ doc_extras = ['Sphinx']
 here = os.path.abspath(os.path.dirname(__file__))
 try:
     README = open(os.path.join(here, 'README.rst')).read()
-    CHANGES = '' #open(os.path.join(here, 'CHANGES.txt')).read()
+    CHANGES = open(os.path.join(here, 'CHANGES.txt')).read()
 except IOError:
     README = CHANGES = ''
 
@@ -28,7 +28,7 @@ setup(name='acidfs',
       description='ACID semantics for the filesystem.',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2.6",
