@@ -233,14 +233,14 @@ class FunctionalTests(unittest.TestCase):
 
     def test_error_writing_blob(self):
         fs = self.make_one()
-        with self.assertRaises(subprocess.CalledProcessError):
+        with self.assertRaises((IOError, subprocess.CalledProcessError)):
             with fs.open('foo', 'w') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
                 fprint(f, b'Howdy!')
 
     def test_error_reading_blob(self):
         fs = self.make_one()
-        fs.open('foo', 'w').write(b'a' * 1000)
+        fs.open('foo', 'w').write(b'a' * 10000)
         with self.assertRaises(subprocess.CalledProcessError):
             with fs.open('foo', 'r') as f:
                 shutil.rmtree(os.path.join(self.tmp, '.git'))
@@ -638,7 +638,7 @@ class FunctionalTests(unittest.TestCase):
         # Expecting two parents for commit since it's a merge
         commit = _check_output(
             ['git', 'cat-file', '-p', 'HEAD^{commit}'],
-            cwd=self.tmp).split('\n')
+            cwd=self.tmp).decode('ascii').split('\n')
         self.assertTrue(commit[1].startswith('parent'))
         self.assertTrue(commit[2].startswith('parent'))
 

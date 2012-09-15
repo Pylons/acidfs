@@ -509,6 +509,9 @@ class _Session(object):
         """
         self.close()
 
+    def sortKey(self):
+        return 0
+
     def close(self):
         self.closed = True
         self.release_lock()
@@ -619,7 +622,7 @@ class _Session(object):
 
             while line:
                 if state is None: # default, scanning for start of a change
-                    if isalpha(line[0]):
+                    if _isalpha(line[0]):
                         # If first column is a letter, then we have the first
                         # line of a change, which describes the change.
                         line = line.strip()
@@ -654,7 +657,7 @@ class _Session(object):
                             raise ConflictError()
 
                 elif state is _MERGE_ADDED_IN_REMOTE:
-                    if isalpha(line[0]) or line.startswith(b'@'):
+                    if _isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, only expecting one
                         expect(len(extra_state) == 1, 'Wrong number of lines')
                         whose, mode, oid, path = extra_state[0].split()
@@ -672,7 +675,7 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_REMOVED_IN_REMOTE:
-                    if isalpha(line[0]) or line.startswith(b'@'):
+                    if _isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, 'Wrong number of lines')
@@ -725,7 +728,7 @@ class _Session(object):
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE) as p:
                                 f = p.stdin
-                                while line and not isalpha(line[0]):
+                                while line and not _isalpha(line[0]):
                                     if line[1:9] == b'<<<<<<< ':
                                         raise ConflictError()
                                     f.write(line)
@@ -740,7 +743,7 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_ADDED_IN_BOTH:
-                    if isalpha(line[0]) or line.startswith(b'@'):
+                    if _isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, 'Wrong number of lines')
@@ -780,8 +783,8 @@ class _TreeNode(object):
                    stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = line.split()
-                name = str(name, 'ascii')
-                oid = str(oid, 'ascii')
+                name = _s(name)
+                oid = _s(oid)
                 contents[name] = (type, oid, None)
 
         return node
@@ -864,9 +867,9 @@ class _TreeNode(object):
                 proc.stdin.write(b' ')
                 proc.stdin.write(type)
                 proc.stdin.write(b' ')
-                proc.stdin.write(b(oid))
+                proc.stdin.write(_b(oid))
                 proc.stdin.write(b'\t')
-                proc.stdin.write(b(name))
+                proc.stdin.write(_b(name))
                 proc.stdin.write(b'\n')
             proc.stdin.close()
             oid = proc.stdout.read().strip()
@@ -1034,16 +1037,22 @@ except AttributeError:  # pragma NO COVER
         return output
 
 
-if sys.version_info[0] == 2:
-    b = lambda s: s
-    isalpha = lambda s: s.isalpha()
-else:
-    def b(s):
+if sys.version_info[0] == 2:  # pragma NO COVER
+    _b = lambda s: s
+    _s = lambda b: b
+    _isalpha = lambda s: s.isalpha()
+else:                         # pragma NO COVER
+    def _b(s):
         if isinstance(s, str):
             s = bytes(s, 'ascii')
         return s
 
+    def _s(b):
+        if isinstance(b, bytes):
+            b = str(b, 'ascii')
+        return b
+
     aa, zz, AA, ZZ = ord('a'), ord('z'), ord('A'), ord('Z')
-    def isalpha(b):
+    def _isalpha(b):
         return aa <= b <= zz or AA <= b <= ZZ
 
