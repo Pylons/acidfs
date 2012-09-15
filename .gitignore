@@ -3,5 +3,6 @@
 .*.swp
 .coverage
 .ropeproject
+.tox
 venv
 docs/_build
