@@ -510,7 +510,7 @@ class _Session(object):
         self.close()
 
     def sortKey(self):
-        return 0
+        return type(self).__name__
 
     def close(self):
         self.closed = True
