@@ -116,6 +116,11 @@ commit and abort transactions::
     frameworks there is also `repoze.tm2
     <http://pypi.python.org/pypi/repoze.tm2>`_.
 
+Commit Metadata
+===============
+
+TODO
+
 API
 ===
 
