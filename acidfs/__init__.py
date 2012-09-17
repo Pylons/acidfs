@@ -54,11 +54,19 @@ class AcidFS(object):
        If the Git repository is to be created, create it as a bare repository.
        If the repository is already created or `create` is False, this argument
        has no effect.
+
+    ``name``
+
+       Name to be used as a sort key when ordering the various databases
+       (datamanagers in the parlance of the transaction package) during a
+       commit.  It is exceedingly rare that you would need to use anything other
+       than the default, here.
     """
     session = None
     _cwd = ()
 
-    def __init__(self, repo, head='HEAD', create=True, bare=False):
+    def __init__(self, repo, head='HEAD', create=True, bare=False,
+                 name='AcidFS'):
         wdpath = repo
         dbpath = os.path.join(repo, '.git')
         if not os.path.exists(dbpath):
@@ -79,13 +87,14 @@ class AcidFS(object):
         self.wd = wdpath
         self.db = dbpath
         self.head = head
+        self.name = name
 
     def _session(self):
         """
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = _Session(self.wd, self.db, self.head)
+            self.session = _Session(self.wd, self.db, self.head, self.name)
         return self.session
 
     def _mkpath(self, path):
@@ -368,9 +377,10 @@ class _Session(object):
     joined = False
     lockfd = None
 
-    def __init__(self, wd, db, head):
+    def __init__(self, wd, db, head, name):
         self.wd = wd
         self.db = db
+        self.name = name
         self.lock_file = os.path.join(db, 'acidfs.lock')
         transaction.get().join(self)
 
@@ -510,7 +520,7 @@ class _Session(object):
         self.close()
 
     def sortKey(self):
-        return type(self).__name__
+        return self.name
 
     def close(self):
         self.closed = True
