@@ -133,7 +133,7 @@ the best illustration::
     current.setUser('Fred Flintstone')
     current.setExtendedInfo('email', 'fred@bed.rock')
 
-A users's name may also be se by using the ``setExtendedInfo`` method::
+A users's name may also be set by using the ``setExtendedInfo`` method::
 
     current.setExtendedInfo('user', 'Fred Flintstone')
 
