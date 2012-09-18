@@ -119,7 +119,31 @@ commit and abort transactions::
 Commit Metadata
 ===============
 
-TODO
+The `transaction <http://pypi.python.org/pypi/transaction>`_ package has built
+in support for providing metadata about a particular transaction.  This
+metadata is used to set the commit data for the underlying git commit for a 
+transaction.  Use of these hooks is optional but recommended to provide 
+meaningful audit information in the history of your repository.  An example is
+the best illustration::
+
+    import transaction
+
+    current = transaction.get()
+    current.note('Added blog entry: "Bedrock Bro Culture: Yabba Dabba Dude!"')
+    current.setUser('Fred Flintstone')
+    current.setExtendedInfo('email', 'fred@bed.rock')
+
+A users's name may also be se by using the ``setExtendedInfo`` method::
+
+    current.setExtendedInfo('user', 'Fred Flintstone')
+
+The transaction might look something like this in the git log::
+
+    commit 3aa61073ea755f2c642ef7e258abe77215fe54a2
+    Author: Fred Flintstone <fred@bed.rock>
+    Date:   Sun Sep 16 22:08:08 2012 -0400
+
+        Added blog entry: "Bedrock Bro Culture: Yabba Dabba Dude!"
 
 API
 ===
