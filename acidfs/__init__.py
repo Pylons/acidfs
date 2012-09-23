@@ -374,7 +374,6 @@ class ConflictError(Exception):
 
 class _Session(object):
     closed = False
-    joined = False
     lockfd = None
 
     def __init__(self, wd, db, head, name):
