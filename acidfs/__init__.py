@@ -1054,7 +1054,8 @@ except AttributeError:  # pragma NO COVER
         Stolen straight from Python 2.7.
         """
         if 'stdout' in kwargs:
-            raise ValueError('stdout argument not allowed, it will be overridden.')
+            raise ValueError(
+                'stdout argument not allowed, it will be overridden.')
         process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
         output, unused_err = process.communicate()
         retcode = process.poll()
