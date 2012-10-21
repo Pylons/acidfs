@@ -161,31 +161,43 @@ class AcidFS(object):
         yield
         self._cwd = prev
 
-    def open(self, path, mode='r'):
+    def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
+             newline=None):
         """
-        Open a file for reading or writing.  Supported modes are:
+        Open a file for reading or writing.
 
-        + `r`, file is opened for reading
-        + `w`, file opened for writing
-        + `a`, file is opened for writing in append mode
+        Implements the semantics of the `open` builtin in Python 3, so opening
+        in text mode will return a file-like object which reads or writes
+        unicode strings, and opening in binary mode reads or writes raw bytes.
+        It does the right thing whether you're using Python 2 or 3.
 
-        `b` may appear in any mode but is ignored.  Effectively all files are
-        opened in binary mode, which should have no impact for platforms other
-        than Windows, which is not supported by this library anyway.
-
-        Files are not seekable as they are attached via pipes to subprocesses
-        that are reading or writing to the git database via git plumbing
-        commands.
+        Random access and seeking are not supported.
         """
         session = self._session()
         parsed = self._mkpath(path)
 
+        if 'b' in mode:
+            binary = True
+            if 't' in mode:
+                raise ValueError("can't have text and binary mode at once")
+        else:
+            binary = False
+
+        if '+' in mode:
+            raise ValueError("Read/write mode is not supported")
+
         mode = mode.replace('b', '')
+        mode = mode.replace('t', '')
         if mode == 'a':
             mode = 'w'
             append = True
         else:
             append = False
+        if mode == 'x':
+            mode = 'w'
+            exclusive = True
+        else:
+            exclusive = False
 
         if mode == 'r':
             obj = session.find(parsed)
@@ -193,7 +205,7 @@ class AcidFS(object):
                 raise _NoSuchFileOrDirectory(path)
             if isinstance(obj, _TreeNode):
                 raise _IsADirectory(path)
-            return obj.open()
+            return obj.open(binary, buffering, encoding, errors, newline)
 
         elif mode == 'w':
             if not parsed:
@@ -208,7 +220,10 @@ class AcidFS(object):
             prev = obj.get(name)
             if isinstance(prev, _TreeNode):
                 raise _IsADirectory(path)
-            blob = obj.new_blob(name, prev)
+            if prev and exclusive:
+                raise _FileExists(path)
+            blob = obj.new_blob(name, prev, binary, buffering, encoding,
+                                errors, newline)
             if append and prev:
                 shutil.copyfileobj(prev.open(), blob)
             return blob
@@ -826,8 +841,10 @@ class _TreeNode(object):
         if obj:
             return obj.find(path[1:])
 
-    def new_blob(self, name, prev):
-        obj = _NewBlob(self.db, prev)
+    def new_blob(self, name, prev, binary=True, buffering=-1, encoding=None,
+                 errors=None, newline=None):
+        obj = _NewBlob(self.db, prev, binary, buffering, encoding, errors,
+                       newline)
         obj.parent = self
         obj.name = name
         self.contents[name] = (b'blob', None, weakref.proxy(obj))
@@ -897,8 +914,10 @@ class _Blob(object):
         self.db = db
         self.oid = oid
 
-    def open(self):
-        return _BlobStream(self.db, self.oid)
+    def open(self, binary=True, buffering=-1, encoding=None, errors=None,
+             newline=None):
+        return _BlobStream(self.db, self.oid, binary, buffering, encoding,
+                           errors, newline)
 
     def find(self, path):
         if not path:
@@ -907,7 +926,7 @@ class _Blob(object):
 
 class _NewBlob(io.RawIOBase):
 
-    def __init__(self, db, prev):
+    def __init__(self, db, prev, binary, buffering, encoding, errors, newline):
         self.db = db
         self.prev = prev
 
@@ -934,9 +953,10 @@ class _NewBlob(io.RawIOBase):
     def writable(self):
         return True
 
-    def open(self):
+    def open(self, binary=True, buffering=-1, encoding=None, errors=None,
+             newline=None):
         if self.prev:
-            return self.prev.open()
+            return self.prev.open(binary, buffering, encoding, errors, newline)
         raise _NoSuchFileOrDirectory(_object_path(self))
 
     def find(self, path):
@@ -946,7 +966,7 @@ class _NewBlob(io.RawIOBase):
 
 class _BlobStream(io.RawIOBase):
 
-    def __init__(self, db, oid):
+    def __init__(self, db, oid, binary, buffering, encoding, errors, newline):
         # XXX buffer?
         self.proc = subprocess.Popen(
             ['git', 'cat-file', 'blob', oid],
