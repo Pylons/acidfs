@@ -167,12 +167,23 @@ class FunctionalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fs.open('foo', 'wtf')
 
+        with self.assertRaises(ValueError):
+            fs.open('foo', 'wbt')
+
+        with self.assertRaises(ValueError):
+            fs.open('foo', 'w+')
+
         with fs.open('bar', 'wb') as f:
             fprint(f, b'Howdy!')
             with self.assertRaises(ValueError) as cm:
                 transaction.commit()
             self.assertEqual(str(cm.exception),
                              "Cannot commit transaction with open files.")
+        transaction.abort()
+
+        fs.open('bar', 'xb').write(b'Hello!')
+        with self.assertFileExists('bar'):
+            fs.open('bar', 'xb')
 
     def test_mkdir_edge_cases(self):
         fs = self.make_one()
