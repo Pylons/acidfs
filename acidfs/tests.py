@@ -278,7 +278,11 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         with self.assertRaises((IOError, subprocess.CalledProcessError)):
             with fs.open('foo', 'wb') as f:
-                shutil.rmtree(os.path.join(self.tmp, '.git'))
+                wait = f.raw.proc.wait
+                def dummy_wait():
+                    wait()
+                    return 1
+                f.raw.proc.wait = dummy_wait
                 fprint(f, b'Howdy!')
 
     def test_error_reading_blob(self):
@@ -286,7 +290,11 @@ class FunctionalTests(unittest.TestCase):
         fs.open('foo', 'wb').write(b'a' * 10000)
         with self.assertRaises(subprocess.CalledProcessError):
             with fs.open('foo', 'rb') as f:
-                shutil.rmtree(os.path.join(self.tmp, '.git'))
+                wait = f.raw.proc.wait
+                def dummy_wait():
+                    wait()
+                    return 1
+                f.raw.proc.wait = dummy_wait
                 f.read()
 
     def test_append(self):
