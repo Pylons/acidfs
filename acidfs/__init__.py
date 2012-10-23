@@ -166,12 +166,17 @@ class AcidFS(object):
         """
         Open a file for reading or writing.
 
-        Implements the semantics of the `open` builtin in Python 3, so opening
-        in text mode will return a file-like object which reads or writes
-        unicode strings, and opening in binary mode reads or writes raw bytes.
-        It does the right thing whether you're using Python 2 or 3.
+        Implements the semantics of the `open` function in Python's `io module
+        <http://docs.python.org/library/io.html#io.open>`_, which is the
+        default implementation `in Python 3
+        <http://docs.python.org/py3k/library/functions.html#open>`_. Opening a
+        file in text mode will return a file-like object which reads or writes
+        unicode strings, while opening a file in binary mode will return a
+        file-like object which reads or writes raw bytes.
 
-        Random access and seeking are not supported.
+        Because the underlying implementation uses a pipe to a `Git` plumbing
+        command, opening for update (read and write) is not supported, nor is
+        seeking.
         """
         session = self._session()
         parsed = self._mkpath(path)
