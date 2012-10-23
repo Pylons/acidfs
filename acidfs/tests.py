@@ -5,6 +5,7 @@ except ImportError: # pragma NO COVER
     import unittest
 
 import contextlib
+import io
 import mock
 import os
 import shutil
@@ -13,6 +14,16 @@ import tempfile
 import transaction
 
 from acidfs import _check_output
+
+
+try:
+    # Python 2
+    u = __builtins__.unicode
+except AttributeError:
+    # Python 3
+    def u(buf, enc='utf8'):
+        assert isinstance(buf, bytes)
+        return buf.decode(enc)
 
 
 class FunctionalTests(unittest.TestCase):
@@ -98,11 +109,29 @@ class FunctionalTests(unittest.TestCase):
         actual_file = os.path.join(self.tmp, 'foo')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
-        with fs.open('foo', 'rb') as f:
+        with fs.open('foo', 'rb', buffering=80) as f:
             self.assertTrue(f.readable())
             self.assertEqual(f.read(), b'Hello\n')
         with open(actual_file, 'rb') as f:
             self.assertEqual(f.read(), b'Hello\n')
+        transaction.commit() # Nothing to commit
+
+    def test_read_write_text_file(self):
+        fs = self.make_one()
+        with fs.open('foo', 'wt') as f:
+            self.assertTrue(f.writable())
+            fprint(f, u(b'Hell\xc3\xb2'))
+            with self.assertNoSuchFileOrDirectory('foo'):
+                fs.open('foo', 'r')
+        self.assertEqual(fs.open('foo', 'r').read(), u(b'Hell\xc3\xb2\n'))
+        actual_file = os.path.join(self.tmp, 'foo')
+        self.assertFalse(os.path.exists(actual_file))
+        transaction.commit()
+        with fs.open('foo', 'r', buffering=1) as f:
+            self.assertTrue(f.readable())
+            self.assertEqual(f.read(), u(b'Hell\xc3\xb2\n'))
+        with open(actual_file, 'rb') as f:
+            self.assertEqual(f.read(), b'Hell\xc3\xb2\n')
         transaction.commit() # Nothing to commit
 
     def test_read_write_file_in_subfolder(self):
@@ -172,6 +201,9 @@ class FunctionalTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             fs.open('foo', 'w+')
+
+        with self.assertRaises(ValueError):
+            fs.open('foo', 'r', buffering=0)
 
         with fs.open('bar', 'wb') as f:
             fprint(f, b'Howdy!')
@@ -669,4 +701,7 @@ class PopenTests(unittest.TestCase):
 
 def fprint(f, s):
     f.write(s)
-    f.write(b'\n')
+    if isinstance(f, io.TextIOWrapper):
+        f.write(u(b'\n'))
+    else:
+        f.write(b'\n')

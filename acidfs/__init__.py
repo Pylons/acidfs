@@ -177,11 +177,13 @@ class AcidFS(object):
         parsed = self._mkpath(path)
 
         if 'b' in mode:
-            binary = True
+            text = False
             if 't' in mode:
                 raise ValueError("can't have text and binary mode at once")
         else:
-            binary = False
+            if not buffering:
+                raise ValueError("can't have unbuffered text I/O")
+            text = True
 
         if '+' in mode:
             raise ValueError("Read/write mode is not supported")
@@ -199,13 +201,29 @@ class AcidFS(object):
         else:
             exclusive = False
 
+        if buffering < 0:
+            buffer_size = io.DEFAULT_BUFFER_SIZE
+            line_buffering = False
+        elif buffering == 1:
+            buffer_size = io.DEFAULT_BUFFER_SIZE
+            line_buffering = True
+        else:
+            buffer_size = buffering
+            line_buffering = False
+
         if mode == 'r':
             obj = session.find(parsed)
             if not obj:
                 raise _NoSuchFileOrDirectory(path)
             if isinstance(obj, _TreeNode):
                 raise _IsADirectory(path)
-            return obj.open(binary, buffering, encoding, errors, newline)
+            stream = obj.open()
+            if buffering:
+                stream = io.BufferedReader(stream, buffer_size)
+            if text:
+                stream = io.TextIOWrapper(
+                    stream, encoding, errors, newline, line_buffering)
+            return stream
 
         elif mode == 'w':
             if not parsed:
@@ -222,10 +240,14 @@ class AcidFS(object):
                 raise _IsADirectory(path)
             if prev and exclusive:
                 raise _FileExists(path)
-            blob = obj.new_blob(name, prev, binary, buffering, encoding,
-                                errors, newline)
+            blob = obj.new_blob(name, prev)
             if append and prev:
                 shutil.copyfileobj(prev.open(), blob)
+            if buffering:
+                blob = io.BufferedWriter(blob, buffer_size)
+            if text:
+                blob = io.TextIOWrapper(
+                    blob, encoding, errors, newline, line_buffering)
             return blob
 
         raise ValueError("Bad mode: %s" % mode)
@@ -841,10 +863,8 @@ class _TreeNode(object):
         if obj:
             return obj.find(path[1:])
 
-    def new_blob(self, name, prev, binary=True, buffering=-1, encoding=None,
-                 errors=None, newline=None):
-        obj = _NewBlob(self.db, prev, binary, buffering, encoding, errors,
-                       newline)
+    def new_blob(self, name, prev):
+        obj = _NewBlob(self.db, prev)
         obj.parent = self
         obj.name = name
         self.contents[name] = (b'blob', None, weakref.proxy(obj))
@@ -914,10 +934,8 @@ class _Blob(object):
         self.db = db
         self.oid = oid
 
-    def open(self, binary=True, buffering=-1, encoding=None, errors=None,
-             newline=None):
-        return _BlobStream(self.db, self.oid, binary, buffering, encoding,
-                           errors, newline)
+    def open(self):
+        return _BlobStream(self.db, self.oid)
 
     def find(self, path):
         if not path:
@@ -926,7 +944,7 @@ class _Blob(object):
 
 class _NewBlob(io.RawIOBase):
 
-    def __init__(self, db, prev, binary, buffering, encoding, errors, newline):
+    def __init__(self, db, prev):
         self.db = db
         self.prev = prev
 
@@ -936,7 +954,8 @@ class _NewBlob(io.RawIOBase):
             stderr=subprocess.STDOUT, cwd=db)
 
     def write(self, b):
-        return self.proc.stdin.write(b)
+        self.proc.stdin.write(b)
+        return len(b)
 
     def close(self):
         if not self.closed:
@@ -953,10 +972,9 @@ class _NewBlob(io.RawIOBase):
     def writable(self):
         return True
 
-    def open(self, binary=True, buffering=-1, encoding=None, errors=None,
-             newline=None):
+    def open(self):
         if self.prev:
-            return self.prev.open(binary, buffering, encoding, errors, newline)
+            return self.prev.open()
         raise _NoSuchFileOrDirectory(_object_path(self))
 
     def find(self, path):
@@ -966,8 +984,7 @@ class _NewBlob(io.RawIOBase):
 
 class _BlobStream(io.RawIOBase):
 
-    def __init__(self, db, oid, binary, buffering, encoding, errors, newline):
-        # XXX buffer?
+    def __init__(self, db, oid):
         self.proc = subprocess.Popen(
             ['git', 'cat-file', 'blob', oid],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=db)
@@ -978,6 +995,19 @@ class _BlobStream(io.RawIOBase):
 
     def read(self, n=-1):
         return self.proc.stdout.read(n)
+
+    def readinto(self, b):
+        """
+        Although the documentation asserts a default implementation of this
+        method can be found in io.RawIOBase, there actually isn't one::
+
+            http://docs.python.org/py3k/library/io.html#io.RawIOBase
+
+        See::
+
+            http://bugs.python.org/issue9858
+        """
+        return self.proc.stdout.readinto(b)
 
     def close(self):
         if not self.closed:
