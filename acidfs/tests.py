@@ -381,6 +381,13 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
         self.assertFalse(os.path.exists(path))
 
+    def test_cant_remove_root_dir(self):
+        fs = self.make_one()
+        with self.assertRaises(ValueError):
+            fs.rmdir('/')
+        with self.assertRaises(ValueError):
+            fs.rmtree('/')
+
     def test_empty(self):
         fs = self.make_one()
         self.assertTrue(fs.empty('/'))

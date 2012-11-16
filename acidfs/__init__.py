@@ -326,6 +326,9 @@ class AcidFS(object):
         session = self._session()
         parsed = self._mkpath(path)
 
+        if not parsed:
+            raise ValueError("Can't remove root directory.")
+
         obj = session.find(parsed)
         if not obj:
             raise _NoSuchFileOrDirectory(path)
@@ -342,6 +345,9 @@ class AcidFS(object):
         """
         session = self._session()
         parsed = self._mkpath(path)
+
+        if not parsed:
+            raise ValueError("Can't remove root directory.")
 
         obj = session.find(parsed)
         if not obj:
