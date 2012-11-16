@@ -103,7 +103,7 @@ class AcidFS(object):
         else:
             parsed = list(filter(None, path.split('/')))
         if not path.startswith('/'):
-            parsed = type(parsed)(self._cwd) + parsed
+            parsed = list(self._cwd) + parsed
         return parsed
 
     def get_base(self):
