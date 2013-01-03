@@ -257,6 +257,17 @@ class AcidFS(object):
 
         raise ValueError("Bad mode: %s" % mode)
 
+    def hash(self, path=''):
+        """
+        Returns the sha1 hash of the object referred to by `path`.  If `path` is
+        omitted the current working directory is used.
+        """
+        session = self._session()
+        obj = session.find(self._mkpath(path))
+        if not obj:
+            raise _NoSuchFileOrDirectory(path)
+        return obj.hash()
+
     def listdir(self, path=''):
         """
         Return list of files in indicated directory.  If `path` is omitted, the
@@ -831,10 +842,12 @@ class _TreeNode(object):
     parent = None
     name = None
     dirty = False
+    oid = None
 
     @classmethod
     def read(cls, db, oid):
         node = cls(db)
+        node.oid = oid
         contents = node.contents
         with _popen(['git', 'ls-tree', oid],
                    stdout=subprocess.PIPE, cwd=db) as lstree:
@@ -902,6 +915,7 @@ class _TreeNode(object):
     def set_dirty(self):
         node = self
         while node and not node.dirty:
+            node.oid = None
             node.dirty = True
             node = node.parent
 
@@ -930,6 +944,7 @@ class _TreeNode(object):
                 proc.stdin.write(b'\n')
             proc.stdin.close()
             oid = proc.stdout.read().strip()
+        self.oid = _s(oid)
         return oid
 
     def empty(self):
@@ -937,6 +952,11 @@ class _TreeNode(object):
 
     def __contains__(self, name):
         return name in self.contents
+
+    def hash(self):
+        if not self.oid:
+            self.save()
+        return self.oid
 
 
 class _Blob(object):
@@ -951,6 +971,9 @@ class _Blob(object):
     def find(self, path):
         if not path:
             return self
+
+    def hash(self):
+        return self.oid
 
 
 class _NewBlob(io.RawIOBase):
@@ -978,7 +1001,7 @@ class _NewBlob(io.RawIOBase):
             if retcode != 0:
                 raise subprocess.CalledProcessError(
                     retcode, 'git hash-object -w --stdin')
-            self.parent.contents[self.name] = (b'blob', oid, None)
+            self.parent.contents[self.name] = (b'blob', _s(oid), None)
 
     def writable(self):
         return True
@@ -986,6 +1009,11 @@ class _NewBlob(io.RawIOBase):
     def open(self):
         if self.prev:
             return self.prev.open()
+        raise _NoSuchFileOrDirectory(_object_path(self))
+
+    def hash(self):
+        if self.prev:
+            return self.prev.hash()
         raise _NoSuchFileOrDirectory(_object_path(self))
 
     def find(self, path):

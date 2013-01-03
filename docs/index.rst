@@ -168,6 +168,7 @@ API
      .. automethod:: empty
      .. automethod:: get_base
      .. automethod:: set_base
+     .. automethod:: hash
 
 .. toctree::
    :maxdepth: 2

@@ -100,12 +100,20 @@ class FunctionalTests(unittest.TestCase):
 
     def test_read_write_file(self):
         fs = self.make_one()
+        self.assertEqual(fs.hash(),
+                         '4b825dc642cb6eb9a060e54bf8d69288fbee4904')
+        with self.assertNoSuchFileOrDirectory('foo'):
+            fs.hash('foo')
         with fs.open('foo', 'wb') as f:
             self.assertTrue(f.writable())
             fprint(f, b'Hello')
             with self.assertNoSuchFileOrDirectory('foo'):
                 fs.open('foo', 'rb')
+            with self.assertNoSuchFileOrDirectory('foo'):
+                fs.hash('foo')
         self.assertEqual(fs.open('foo', 'rb').read(), b'Hello\n')
+        self.assertEqual(fs.hash('foo'),
+                         'e965047ad7c57865823c7d992b1d046ea66edf78')
         actual_file = os.path.join(self.tmp, 'foo')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
@@ -139,10 +147,14 @@ class FunctionalTests(unittest.TestCase):
         self.assertFalse(fs.isdir('foo'))
         fs.mkdir('foo')
         self.assertTrue(fs.isdir('foo'))
+        self.assertEqual(fs.hash('foo'),
+                         '4b825dc642cb6eb9a060e54bf8d69288fbee4904')
         with fs.open('foo/bar', 'wb') as f:
             fprint(f, b'Hello')
         with fs.open('foo/bar', 'rb') as f:
             self.assertEqual(f.read(), b'Hello\n')
+        self.assertEqual(fs.hash('foo'),
+                         'c57c02051dae8e2e4803530c217ac38121f393d3')
         actual_file = os.path.join(self.tmp, 'foo', 'bar')
         self.assertFalse(os.path.exists(actual_file))
         transaction.commit()
@@ -268,7 +280,11 @@ class FunctionalTests(unittest.TestCase):
         with fs.open('foo', 'wb') as f:
             fprint(f, b"Hello!")
             self.assertEqual(fs.open('foo', 'rb').read(), b'Howdy!\n')
+            self.assertEqual(fs.hash('foo'),
+                             'c564dac563c1974addaa0ac0ae028fc92b2370f1')
         self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!\n')
+        self.assertEqual(fs.hash('foo'),
+                         '10ddd6d257e01349d514541981aeecea6b2e741d')
         self.assertEqual(open(path, 'rb').read(), b'Howdy!\n')
         transaction.commit()
 
