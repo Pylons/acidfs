@@ -6,6 +6,3 @@ to the filesystem  safe and reliable.
 
 Full documentation is available at `Read the Docs 
 <http://acidfs.readthedocs.org/>`_.
-
-This beta is considered a release candidate.  If sufficient time passes without
-an issue arising, this code will become the final 1.0 release.
