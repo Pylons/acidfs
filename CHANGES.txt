@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+Unreleased
+----------
+
+- Fix bug with spaces in directory names.
+
 1.0 (2013-01-03)
 ----------------
 

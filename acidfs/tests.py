@@ -718,6 +718,15 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue(commit[1].startswith('parent'))
         self.assertTrue(commit[2].startswith('parent'))
 
+    def test_directory_name_with_spaces(self):
+        fs = self.make_one()
+        fs.mkdir("foo bar")
+        with fs.cd("foo bar"):
+            fs.open("foo", "w").write(u("bar"))
+        transaction.commit()
+
+        with fs.cd("foo bar"):
+            self.assertTrue(fs.open("foo").read(), u("bar"))
 
 class PopenTests(unittest.TestCase):
 

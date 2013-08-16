@@ -728,7 +728,7 @@ class _Session(object):
                     if _isalpha(line[0]) or line.startswith(b'@'):
                         # Done collecting tree lines, only expecting one
                         expect(len(extra_state) == 1, 'Wrong number of lines')
-                        whose, mode, oid, path = extra_state[0].split()
+                        whose, mode, oid, path = _parsetree(extra_state[0])
                         expect(whose == b'their', 'Unexpected whose: %s', whose)
                         expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         parsed = path.decode('ascii').split('/')
@@ -747,11 +747,11 @@ class _Session(object):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, 'Wrong number of lines')
-                        whose, mode, oid, path = extra_state[0].split()
+                        whose, mode, oid, path = _parsetree(extra_state[0])
                         expect(whose in (b'our', b'base'),
                                'Unexpected whose: %s', whose)
                         expect(mode == b'100644', 'Unexpected mode: %s', mode)
-                        whose, mode, oid2, path2 = extra_state[1].split()
+                        whose, mode, oid2, path2 = _parsetree(extra_state[1])
                         expect(whose in (b'our', b'base'),
                                'Unexpected whose: %s', whose)
                         expect(mode == b'100644', 'Unexpected mode: %s', mode)
@@ -772,12 +772,12 @@ class _Session(object):
                         # Done collecting tree lines, expect three, one for base
                         # and one for each copy
                         expect(len(extra_state) == 3, 'Wrong number of lines')
-                        whose, mode, oid, path = extra_state[0].split()
+                        whose, mode, oid, path = _parsetree(extra_state[0])
                         expect(whose in (b'base', b'our', b'their'),
                                'Unexpected whose: %s', whose)
                         expect(mode == b'100644', 'Unexpected mode: %s', mode)
                         for extra_line in extra_state[1:]:
-                            whose, mode, oid2, path2 = extra_line.split()
+                            whose, mode, oid2, path2 = _parsetree(extra_line)
                             expect(whose in (b'base', b'our', b'their'),
                                    'Unexpected whose: %s', whose)
                             expect(mode == b'100644', 'Unexpected mode: %s',
@@ -815,11 +815,11 @@ class _Session(object):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, 'Wrong number of lines')
-                        whose, mode, oid, path = extra_state[0].split()
+                        whose, mode, oid, path = _parsetree(extra_state[0])
                         expect(whose in (b'our', b'their'), 'Unexpected whose: %s',
                                whose)
                         expect(mode == b'100644', 'Unexpected mode: %s', mode)
-                        whose, mode, oid2, path2 = extra_state[1].split()
+                        whose, mode, oid2, path2 = _parsetree(extra_state[1])
                         expect(whose in (b'our', b'their'),
                                'Unexpected whose: %s', whose)
                         expect(mode == b'100644', 'Unexpected mode: %s', mode)
@@ -852,7 +852,7 @@ class _TreeNode(object):
         with _popen(['git', 'ls-tree', oid],
                    stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
-                mode, type, oid, name = line.split()
+                mode, type, oid, name = _parsetree(line)
                 name = _s(name)
                 oid = _s(oid)
                 contents[name] = (type, oid, None)
@@ -957,6 +957,10 @@ class _TreeNode(object):
         if not self.oid:
             self.save()
         return self.oid
+
+
+def _parsetree(line):
+    return line.strip().split(None, 3)
 
 
 class _Blob(object):
