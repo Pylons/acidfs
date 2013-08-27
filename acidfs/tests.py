@@ -469,6 +469,22 @@ class FunctionalTests(unittest.TestCase):
         self.assertFalse(pexists(j(self.tmp, 'one', 'a')))
         self.assertTrue(pexists(j(self.tmp, 'one', 'b', 'a')))
 
+    def test_mv_noop(self):
+        """
+        Tests an error report from Hasan Karahan.
+        """
+        fs = self.make_one()
+        fs.open('foo', 'wb').write(b'Hello!')
+        fs.mv('foo', 'foo')
+        self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!')
+        transaction.commit()
+        self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!')
+
+        fs.mv('foo', 'foo')
+        self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!')
+        transaction.commit()
+        self.assertEqual(fs.open('foo', 'rb').read(), b'Hello!')
+
     def test_listdir(self):
         fs = self.make_one()
         fs.mkdirs('one/a')
@@ -722,11 +738,11 @@ class FunctionalTests(unittest.TestCase):
         fs = self.make_one()
         fs.mkdir("foo bar")
         with fs.cd("foo bar"):
-            fs.open("foo", "w").write(u("bar"))
+            fs.open("foo", "wb").write(b"bar")
         transaction.commit()
 
         with fs.cd("foo bar"):
-            self.assertTrue(fs.open("foo").read(), u("bar"))
+            self.assertTrue(fs.open("foo", "rb").read(), b"bar")
 
 class PopenTests(unittest.TestCase):
 
