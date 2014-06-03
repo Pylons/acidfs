@@ -6,6 +6,9 @@ Unreleased
 
 - Fix bug with spaces in directory names.
 
+- Fix bug where calling setUser with '' as path (as pyramid_tm does) would 
+  cause an exception when committing the transaction.
+
 1.0 (2013-01-03)
 ----------------
 

@@ -608,7 +608,10 @@ class _Session(object):
         if not user:
             user = tx.user
             if user:
-                user = user.split(None, 1)[1] # strip Zope's "path"
+                if user.startswith(' '):
+                    user = user[1:]
+                else:
+                    user = user.split(None, 1)[1] # strip Zope's "path"
         if user:
             gitenv['GIT_AUTHOR_NAME'] = gitenv['GIT_COMMITER_NAME'] = user
         email = extension.get('email')

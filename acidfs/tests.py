@@ -257,6 +257,20 @@ class FunctionalTests(unittest.TestCase):
         self.assertIn(b'Author: Fred Flintstone <fred@bed.rock>', output)
         self.assertIn(b'A test commit.', output)
 
+    def test_commit_metadata_user_path_is_blank(self):
+        # pyramid_tm calls setUser with '' for path
+        fs = self.make_one()
+        tx = transaction.get()
+        tx.note("A test commit.")
+        tx.setUser('Fred', '')
+        tx.setExtendedInfo('email', 'fred@bed.rock')
+        fs.open('foo', 'wb').write(b'Howdy!')
+        transaction.commit()
+
+        output = _check_output(['git', 'log'], cwd=self.tmp)
+        self.assertIn(b'Author: Fred <fred@bed.rock>', output)
+        self.assertIn(b'A test commit.', output)
+
     def test_commit_metadata_extended_info_for_user(self):
         fs = self.make_one()
         tx = transaction.get()
@@ -743,6 +757,7 @@ class FunctionalTests(unittest.TestCase):
 
         with fs.cd("foo bar"):
             self.assertTrue(fs.open("foo", "rb").read(), b"bar")
+
 
 class PopenTests(unittest.TestCase):
 
