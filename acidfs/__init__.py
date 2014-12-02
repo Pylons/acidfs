@@ -604,17 +604,22 @@ class _Session(object):
             message = 'AcidFS transaction'
         gitenv = os.environ.copy()
         extension = tx._extension  # "Official" API despite underscore
-        user = extension.get('user')
+        user = extension.get('acidfs_user')
         if not user:
-            user = tx.user
-            if user:
-                if user.startswith(' '):
-                    user = user[1:]
-                else:
-                    user = user.split(None, 1)[1] # strip Zope's "path"
+            user = extension.get('user')
+            if not user:
+                user = tx.user
+                if user:
+                    if user.startswith(' '):
+                        user = user[1:]
+                    else:
+                        user = user.split(None, 1)[1] # strip Zope's "path"
         if user:
             gitenv['GIT_AUTHOR_NAME'] = gitenv['GIT_COMMITER_NAME'] = user
-        email = extension.get('email')
+
+        email = extension.get('acidfs_email')
+        if not email:
+            email = extension.get('email')
         if email:
             gitenv['GIT_AUTHOR_EMAIL'] = gitenv['GIT_COMMITTER_EMAIL'] = \
                 gitenv['EMAIL'] = email
