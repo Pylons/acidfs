@@ -137,6 +137,16 @@ A users's name may also be set by using the ``setExtendedInfo`` method::
 
     current.setExtendedInfo('user', 'Fred Flintstone')
 
+The keys ``acidfs_user`` and ``acidfs_email`` are available in extended info in
+case you are sharing a transaction with a system that has a different notion of
+what user and email should be set to.  Substance D, for examples, sets the user
+to an integer OID that represents the user in its system, but that might not be
+what you want to see in the Git log for your repository::
+
+    
+    current.setExtendedInfo('acidfs_user', 'Fred Flintstone')
+    current.setExtendedInfo('acidfs_email', 'fred@bed.rock')
+
 The transaction might look something like this in the git log::
 
     commit 3aa61073ea755f2c642ef7e258abe77215fe54a2
