@@ -55,6 +55,18 @@ class AcidFS(object):
        If the repository is already created or `create` is False, this argument
        has no effect.
 
+    ``user_name``
+
+       If the Git repository is to be created, set the user name for the
+       repository to this value.  This is the same as creating the repository
+       and running `git config user.name "<user_name>"`.
+
+    ``user_email``
+
+       If the Git repository is to be created, set the user email for the
+       repository to this value.  This is the same as creating the repository
+       and running `git config user.email "<user_email>"`.
+
     ``name``
 
        Name to be used as a sort key when ordering the various databases
@@ -66,7 +78,7 @@ class AcidFS(object):
     _cwd = ()
 
     def __init__(self, repo, head='HEAD', create=True, bare=False,
-                 name='AcidFS'):
+                 user_name=None, user_email=None, name='AcidFS'):
         wdpath = repo
         dbpath = os.path.join(repo, '.git')
         if not os.path.exists(dbpath):
@@ -81,6 +93,12 @@ class AcidFS(object):
                         wdpath = repo
                         dbpath = os.path.join(repo, '.git')
                     _check_output(args)
+                    if user_name:
+                        args = ['git', 'config', 'user.name', user_name]
+                        _check_output(args, cwd=dbpath)
+                    if user_email:
+                        args = ['git', 'config', 'user.email', user_email]
+                        _check_output(args, cwd=dbpath)
                 else:
                     raise ValueError('No database found in %s' % dbpath)
 
