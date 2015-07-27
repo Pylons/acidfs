@@ -124,6 +124,14 @@ class FunctionalTests(unittest.TestCase):
             self.assertEqual(f.read(), b'Hello\n')
         transaction.commit() # Nothing to commit
 
+    def test_read_write_nonascii_name(self):
+        fs = self.make_one(path_encoding='utf-8')
+        filename = b'Hell\xc3\xb2'.decode('utf-8')
+        with fs.open(filename, 'wb') as f:
+            fprint(f, b'Hello')
+        transaction.commit()
+        self.assertEquals(fs.listdir(), [filename])
+
     def test_read_write_text_file(self):
         fs = self.make_one()
         with fs.open('foo', 'wt') as f:
