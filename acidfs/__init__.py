@@ -73,12 +73,17 @@ class AcidFS(object):
        (datamanagers in the parlance of the transaction package) during a
        commit.  It is exceedingly rare that you would need to use anything other
        than the default, here.
+
+    ``path_encoding``
+
+       Encode paths with this encoding. The default is `ascii`.
     """
     session = None
     _cwd = ()
 
     def __init__(self, repo, head='HEAD', create=True, bare=False,
-                 user_name=None, user_email=None, name='AcidFS'):
+                 user_name=None, user_email=None, name='AcidFS',
+                 path_encoding='ascii'):
         wdpath = repo
         dbpath = os.path.join(repo, '.git')
         if not os.path.exists(dbpath):
@@ -99,6 +104,8 @@ class AcidFS(object):
                     if user_email:
                         args = ['git', 'config', 'user.email', user_email]
                         _check_output(args, cwd=dbpath)
+                    args = ['git', 'config', 'core.quotepath', 'false']
+                    _check_output(args, cwd=dbpath)
                 else:
                     raise ValueError('No database found in %s' % dbpath)
 
@@ -106,13 +113,15 @@ class AcidFS(object):
         self.db = dbpath
         self.head = head
         self.name = name
+        self.path_encoding = path_encoding
 
     def _session(self):
         """
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = _Session(self.wd, self.db, self.head, self.name)
+            self.session = _Session(self.wd, self.db, self.head, self.name,
+                                    self.path_encoding)
         return self.session
 
     def _mkpath(self, path):
@@ -453,10 +462,11 @@ class _Session(object):
     closed = False
     lockfd = None
 
-    def __init__(self, wd, db, head, name):
+    def __init__(self, wd, db, head, name, path_encoding):
         self.wd = wd
         self.db = db
         self.name = name
+        self.path_encoding = path_encoding
         self.lock_file = os.path.join(db, 'acidfs.lock')
         transaction.get().join(self)
 
@@ -473,10 +483,10 @@ class _Session(object):
             # Existing head, get head revision
             self.prev_commit = _check_output(
                 ['git', 'rev-list', '--max-count=1', head], cwd=db).strip()
-            self.tree = _TreeNode.read(db, self.prev_commit)
+            self.tree = _TreeNode.read(db, self.prev_commit, path_encoding)
         else:
             # New head, no commits yet
-            self.tree = _TreeNode(db) # empty tree
+            self.tree = _TreeNode(db, path_encoding)  # empty tree
             self.prev_commit = None
 
     def set_base(self, ref):
@@ -485,7 +495,8 @@ class _Session(object):
                 "Cannot set base when changes already made in transaction.")
         self.prev_commit = _check_output(
             ['git', 'rev-list', '--max-count=1', ref], cwd=self.db).strip()
-        self.tree = _TreeNode.read(self.db, self.prev_commit)
+        self.tree = _TreeNode.read(self.db, self.prev_commit,
+                                   self.path_encoding)
 
     def find(self, path):
         assert isinstance(path, (list, tuple))
@@ -871,22 +882,23 @@ class _TreeNode(object):
     oid = None
 
     @classmethod
-    def read(cls, db, oid):
-        node = cls(db)
+    def read(cls, db, oid, path_encoding):
+        node = cls(db, path_encoding)
         node.oid = oid
         contents = node.contents
         with _popen(['git', 'ls-tree', oid],
                    stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = _parsetree(line)
-                name = _s(name)
+                name = name.decode(path_encoding)
                 oid = _s(oid)
                 contents[name] = (type, oid, None)
 
         return node
 
-    def __init__(self, db):
+    def __init__(self, db, path_encoding):
         self.db = db
+        self.path_encoding = path_encoding
         self.contents = {}
 
     def get(self, name):
@@ -898,7 +910,7 @@ class _TreeNode(object):
         assert type in (b'tree', b'blob')
         if not obj:
             if type == b'tree':
-                obj = _TreeNode.read(self.db, oid)
+                obj = _TreeNode.read(self.db, oid, self.path_encoding)
             else:
                 obj = _Blob(self.db, oid)
             obj.parent = self
@@ -922,7 +934,7 @@ class _TreeNode(object):
         return obj
 
     def new_tree(self, name):
-        node = _TreeNode(self.db)
+        node = _TreeNode(self.db, self.path_encoding)
         node.parent = self
         node.name = name
         self.contents[name] = (b'tree', None, node)
@@ -966,7 +978,7 @@ class _TreeNode(object):
                 proc.stdin.write(b' ')
                 proc.stdin.write(_b(oid))
                 proc.stdin.write(b'\t')
-                proc.stdin.write(_b(name))
+                proc.stdin.write(name.encode(self.path_encoding))
                 proc.stdin.write(b'\n')
             proc.stdin.close()
             oid = proc.stdout.read().strip()
