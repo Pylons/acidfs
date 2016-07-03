@@ -1,6 +1,7 @@
 *.pyc
 *.egg-info
 .*.swp
+.cache
 .coverage
 .ropeproject
 .tox

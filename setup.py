@@ -8,12 +8,17 @@ VERSION = '1.1dev'
 requires = [
     'transaction',
 ]
-tests_require = requires + ['mock']
 
-if sys.version < '2.7':
-    tests_require += ['unittest2']
+PY3 = sys.version_info[0] == 3
+PY2 = sys.version_info[0] == 2
 
-testing_extras = tests_require + ['nose', 'coverage', 'tox']
+tests_require = requires + ['pytest', 'pytest-cov']
+
+if PY2:
+    tests_require += ['mock']
+
+testing_extras = tests_require + ['tox']
+
 doc_extras = ['Sphinx']
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -23,11 +28,12 @@ try:
 except IOError:
     README = CHANGES = ''
 
-setup(name='acidfs',
-      version=VERSION,
-      description='ACID semantics for the filesystem.',
-      long_description=README + '\n\n' + CHANGES,
-      classifiers=[
+setup(
+    name='acidfs',
+    version=VERSION,
+    description='ACID semantics for the filesystem.',
+    long_description=README + '\n\n' + CHANGES,
+    classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "Programming Language :: Python",
@@ -40,19 +46,20 @@ setup(name='acidfs',
         #"Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Database",
         "License :: Repoze Public License",
-        ],
-      keywords='git acid filesystem transaction',
-      author="Chris Rossi",
-      author_email="pylons-discuss@googlegroups.com",
-      url="http://pylonsproject.org",
-      license="BSD-derived (http://www.repoze.org/LICENSE.txt)",
-      packages=find_packages(),
-      include_package_data=True,
-      zip_safe=False,
-      install_requires=requires,
-      tests_require=tests_require,
-      extras_require={
-          'testing': testing_extras,
-          'docs': doc_extras,
-      },
-      test_suite="acidfs.tests")
+    ],
+    keywords='git acid filesystem transaction',
+    author="Chris Rossi",
+    author_email="pylons-discuss@googlegroups.com",
+    url="http://pylonsproject.org",
+    license="BSD-derived (http://www.repoze.org/LICENSE.txt)",
+    packages=find_packages(),
+    include_package_data=True,
+    zip_safe=False,
+    install_requires=requires,
+    tests_require=tests_require,
+    extras_require={
+        'testing': testing_extras,
+        'docs': doc_extras,
+    },
+    test_suite="acidfs.tests",
+)
