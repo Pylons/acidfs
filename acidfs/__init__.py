@@ -642,7 +642,12 @@ class _Session(object):
                     if user.startswith(' '):
                         user = user[1:]
                     else:
-                        user = user.split(None, 1)[1] # strip Zope's "path"
+                        # strip Zope's "path"
+                        user = user.split(None, 1)
+                        if len(user) == 2:
+                            user = user[1]
+                        else:
+                            user = user[0]
         if user:
             gitenv['GIT_AUTHOR_NAME'] = gitenv['GIT_COMMITER_NAME'] = user
 
