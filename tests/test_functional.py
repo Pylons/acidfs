@@ -201,6 +201,25 @@ def test_read_write_file_in_subfolder_bare_repo(factory):
         assert f.read() == b'Hello\n'
 
 
+def test_append_twice_to_same_file(factory):
+    fs = factory()
+    with fs.open('foo', 'a') as f:
+        fprint(f, u'One')
+    with fs.open('foo', 'a') as f:
+        fprint(f, u'Two')
+    with fs.open('foo') as f:
+        assert f.read() == (
+            "One\n"
+            "Two\n"
+        )
+    transaction.commit()
+    with fs.open('foo') as f:
+        assert f.read() == (
+            "One\n"
+            "Two\n"
+        )
+
+
 def test_open_edge_cases(factory):
     fs = factory()
 
