@@ -3,7 +3,7 @@ from setuptools import setup
 from setuptools import find_packages
 import sys
 
-VERSION = '1.1dev'
+VERSION = '1.1'
 
 requires = [
     'transaction',
