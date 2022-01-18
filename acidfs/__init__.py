@@ -416,7 +416,7 @@ class AcidFS(object):
             raise _NoSuchFileOrDirectory(src)
         sname = spath[-1]
         sfolder = session.find(spath[:-1])
-        if not sfolder or not sname in sfolder:
+        if not sfolder or sname not in sfolder:
             raise _NoSuchFileOrDirectory(src)
 
         dpath = self._mkpath(dst)
