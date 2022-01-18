@@ -605,6 +605,26 @@ def test_chdir(factory):
     assert fs.listdir() == ['a']
 
 
+def test_nochange_commit(factory, tmp):
+    fs = factory()
+    with fs.open("foo", "w") as f:
+        f.write("hi mom!")
+
+    transaction.commit()
+
+    assert count_commits(tmp) == 1
+
+    with open(os.path.join(tmp, "foo"), "r") as f:
+        assert f.read() == "hi mom!"
+
+    with fs.open("foo", "w") as f:
+        f.write("hi mom!")
+
+    transaction.commit()
+
+    assert count_commits(tmp) == 1
+
+
 '''
 def test_conflict_error_on_first_commit(self):
     from acidfs import ConflictError
@@ -845,3 +865,13 @@ def fprint(f, s):
         f.write(u'\n')
     else:
         f.write(b'\n')
+
+
+def count_commits(tmp):
+    output = _check_output(['git', 'log'], cwd=tmp)
+    commits = 0
+    for line in output.split(b"\n"):
+        if line.startswith(b"commit "):
+            commits += 1
+
+    return commits

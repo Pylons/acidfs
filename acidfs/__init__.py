@@ -530,10 +530,15 @@ class _Session(object):
 
         # Write tree to db
         tree_oid = self.tree.save()
+        if self.tree.prev_oid == tree_oid:
+            # Nothing actually changed
+            self.tree.dirty = False
+            return
+
         if self.prev_commit:
             parents = [self.prev_commit]
         else:
-           parents = []
+            parents = []
         commit_oid = self.mkcommit(tx, tree_oid, parents)
 
         # Acquire an exclusive (aka write) lock for merge.
@@ -885,6 +890,7 @@ class _TreeNode(object):
     name = None
     dirty = False
     oid = None
+    prev_oid = None
 
     @classmethod
     def read(cls, db, oid, path_encoding):
@@ -958,6 +964,10 @@ class _TreeNode(object):
     def set_dirty(self):
         node = self
         while node and not node.dirty:
+            node.prev_oid = _check_output(
+                ["git", "rev-parse", "{}^{{tree}}".format(_s(node.oid))],
+                cwd=self.db
+            ).strip() if node.oid else None
             node.oid = None
             node.dirty = True
             node = node.parent
