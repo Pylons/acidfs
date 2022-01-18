@@ -1,18 +1,13 @@
-try:  # pragma no cover
-    import unittest2 as unittest
-
-    unittest  # stfu pyflakes
-except ImportError:  # pragma NO COVER
-    import unittest
-
 import contextlib
 import io
-import mock
 import os
 import shutil
 import subprocess
+import unittest
 import tempfile
 import transaction
+
+from unittest import mock
 
 from acidfs import _check_output
 

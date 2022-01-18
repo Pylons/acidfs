@@ -1,0 +1,2 @@
+Sphinx won't build without this directory, even though we don't have anything to put in
+it. Git won't let you check in empty directories. So now this directory isn't empty.
