@@ -110,7 +110,7 @@ def assert_directory_not_empty(path):
 
 def test_read_write_file(factory, tmp):
     fs = factory()
-    assert fs.hash() == "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    assert fs.hash() == b"4b825dc642cb6eb9a060e54bf8d69288fbee4904"
     with assert_no_such_file_or_directory("foo"):
         fs.hash("foo")
     with fs.open("foo", "wb") as f:
@@ -121,7 +121,7 @@ def test_read_write_file(factory, tmp):
         with assert_no_such_file_or_directory("foo"):
             fs.hash("foo")
     assert fs.open("foo", "rb").read() == b"Hello\n"
-    assert fs.hash("foo") == "e965047ad7c57865823c7d992b1d046ea66edf78"
+    assert fs.hash("foo") == b"e965047ad7c57865823c7d992b1d046ea66edf78"
     actual_file = os.path.join(tmp, "foo")
     assert not os.path.exists(actual_file)
     transaction.commit()
@@ -166,12 +166,12 @@ def test_read_write_file_in_subfolder(factory, tmp):
     assert not fs.isdir("foo")
     fs.mkdir("foo")
     assert fs.isdir("foo")
-    assert fs.hash("foo") == "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    assert fs.hash("foo") == b"4b825dc642cb6eb9a060e54bf8d69288fbee4904"
     with fs.open("foo/bar", "wb") as f:
         fprint(f, b"Hello")
     with fs.open("foo/bar", "rb") as f:
         assert f.read() == b"Hello\n"
-    assert fs.hash("foo") == "c57c02051dae8e2e4803530c217ac38121f393d3"
+    assert fs.hash("foo") == b"c57c02051dae8e2e4803530c217ac38121f393d3"
     actual_file = os.path.join(tmp, "foo", "bar")
     assert not os.path.exists(actual_file)
     transaction.commit()
@@ -333,9 +333,9 @@ def test_modify_file(factory, tmp):
     with fs.open("foo", "wb") as f:
         fprint(f, b"Hello!")
         assert fs.open("foo", "rb").read() == b"Howdy!\n"
-        assert fs.hash("foo") == "c564dac563c1974addaa0ac0ae028fc92b2370f1"
+        assert fs.hash("foo") == b"c564dac563c1974addaa0ac0ae028fc92b2370f1"
     assert fs.open("foo", "rb").read() == b"Hello!\n"
-    assert fs.hash("foo") == "10ddd6d257e01349d514541981aeecea6b2e741d"
+    assert fs.hash("foo") == b"10ddd6d257e01349d514541981aeecea6b2e741d"
     assert open(path, "rb").read() == b"Howdy!\n"
     transaction.commit()
 

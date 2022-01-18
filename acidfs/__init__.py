@@ -4,7 +4,6 @@ import io
 import logging
 import os
 import shutil
-import sys
 import subprocess
 import tempfile
 import traceback
@@ -756,7 +755,7 @@ class _Session(object):
 
             while line:
                 if state is None:  # default, scanning for start of a change
-                    if _isalpha(line[0]):
+                    if line[0:1].isalpha():
                         # If first column is a letter, then we have the first
                         # line of a change, which describes the change.
                         line = line.strip()
@@ -794,7 +793,7 @@ class _Session(object):
                             raise ConflictError()
 
                 elif state is _MERGE_ADDED_IN_REMOTE:
-                    if _isalpha(line[0]) or line.startswith(b"@"):
+                    if line[0:1].isalpha() or line.startswith(b"@"):
                         # Done collecting tree lines, only expecting one
                         expect(len(extra_state) == 1, "Wrong number of lines")
                         whose, mode, oid, path = _parsetree(extra_state[0])
@@ -811,7 +810,7 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_REMOVED_IN_REMOTE:
-                    if _isalpha(line[0]) or line.startswith(b"@"):
+                    if line[0:1].isalpha() or line.startswith(b"@"):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, "Wrong number of lines")
@@ -873,7 +872,7 @@ class _Session(object):
                                 stderr=subprocess.PIPE,
                             ) as p:
                                 f = p.stdin
-                                while line and not _isalpha(line[0]):
+                                while line and not line[0:1].isalpha():
                                     if line[1:9] == b"<<<<<<< ":
                                         raise ConflictError()
                                     f.write(line)
@@ -888,7 +887,7 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_ADDED_IN_BOTH:
-                    if _isalpha(line[0]) or line.startswith(b"@"):
+                    if line[0:1].isalpha() or line.startswith(b"@"):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
                         expect(len(extra_state) == 2, "Wrong number of lines")
@@ -933,7 +932,6 @@ class _TreeNode(object):
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = _parsetree(line)
                 name = name.decode(path_encoding)
-                oid = _s(oid)
                 contents[name] = (type, oid, None)
 
         return node
@@ -997,7 +995,11 @@ class _TreeNode(object):
         while node and not node.dirty:
             node.prev_oid = (
                 _check_output(
-                    ["git", "rev-parse", "{}^{{tree}}".format(_s(node.oid))],
+                    [
+                        "git",
+                        "rev-parse",
+                        f"{node.oid.decode('ascii')}^{{tree}}",
+                    ],
                     cwd=self.db,
                 ).strip()
                 if node.oid
@@ -1030,13 +1032,13 @@ class _TreeNode(object):
                 proc.stdin.write(b" ")
                 proc.stdin.write(type)
                 proc.stdin.write(b" ")
-                proc.stdin.write(_b(oid))
+                proc.stdin.write(oid)
                 proc.stdin.write(b"\t")
                 proc.stdin.write(name.encode(self.path_encoding))
                 proc.stdin.write(b"\n")
             proc.stdin.close()
             oid = proc.stdout.read().strip()
-        self.oid = _s(oid)
+        self.oid = oid
         return oid
 
     def empty(self):
@@ -1099,7 +1101,7 @@ class _NewBlob(io.RawIOBase):
                 raise subprocess.CalledProcessError(
                     retcode, "git hash-object -w --stdin"
                 )
-            self.parent.contents[self.name] = (b"blob", _s(oid), None)
+            self.parent.contents[self.name] = (b"blob", oid, None)
 
     def writable(self):
         return True
@@ -1214,46 +1216,4 @@ _MERGE_REMOVED_IN_REMOTE = object()
 _MERGE_CHANGED_IN_BOTH = object()
 _MERGE_ADDED_IN_BOTH = object()
 
-
-try:
-    # Python >= 2.7
-    _check_output = subprocess.check_output
-except AttributeError:  # pragma NO COVER
-
-    def _check_output(*popenargs, **kwargs):
-        """
-        Stolen straight from Python 2.7.
-        """
-        if "stdout" in kwargs:
-            raise ValueError("stdout argument not allowed, it will be overridden.")
-        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
-        output, unused_err = process.communicate()
-        retcode = process.poll()
-        if retcode:
-            cmd = kwargs.get("args")
-            if cmd is None:
-                cmd = popenargs[0]
-            raise subprocess.CalledProcessError(retcode, cmd, output=output)
-        return output
-
-
-if sys.version_info[0] == 2:  # pragma NO COVER
-    _b = lambda s: s
-    _s = lambda b: b
-    _isalpha = lambda s: s.isalpha()
-else:  # pragma NO COVER
-
-    def _b(s):
-        if isinstance(s, str):
-            s = bytes(s, "ascii")
-        return s
-
-    def _s(b):
-        if isinstance(b, bytes):
-            b = str(b, "ascii")
-        return b
-
-    aa, zz, AA, ZZ = ord("a"), ord("z"), ord("A"), ord("Z")
-
-    def _isalpha(b):
-        return aa <= b <= zz or AA <= b <= ZZ
+_check_output = subprocess.check_output
