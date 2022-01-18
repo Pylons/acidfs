@@ -3,36 +3,36 @@ from setuptools import setup
 from setuptools import find_packages
 import sys
 
-VERSION = '1.1'
+VERSION = "1.1"
 
 requires = [
-    'transaction',
+    "transaction",
 ]
 
 PY3 = sys.version_info[0] == 3
 PY2 = sys.version_info[0] == 2
 
-tests_require = requires + ['pytest', 'pytest-cov']
+tests_require = requires + ["pytest", "pytest-cov"]
 
 if PY2:
-    tests_require += ['mock']
+    tests_require += ["mock"]
 
-testing_extras = tests_require + ['tox']
+testing_extras = tests_require + ["tox"]
 
-doc_extras = ['Sphinx']
+doc_extras = ["Sphinx"]
 
 here = os.path.abspath(os.path.dirname(__file__))
 try:
-    README = open(os.path.join(here, 'README.rst')).read()
-    CHANGES = open(os.path.join(here, 'CHANGES.txt')).read()
+    README = open(os.path.join(here, "README.rst")).read()
+    CHANGES = open(os.path.join(here, "CHANGES.txt")).read()
 except IOError:
-    README = CHANGES = ''
+    README = CHANGES = ""
 
 setup(
-    name='acidfs',
+    name="acidfs",
     version=VERSION,
-    description='ACID semantics for the filesystem.',
-    long_description=README + '\n\n' + CHANGES,
+    description="ACID semantics for the filesystem.",
+    long_description=README + "\n\n" + CHANGES,
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
@@ -43,11 +43,11 @@ setup(
         "Programming Language :: Python :: 3.2",
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: Implementation :: CPython",
-        #"Programming Language :: Python :: Implementation :: PyPy",
+        # "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Database",
         "License :: Repoze Public License",
     ],
-    keywords='git acid filesystem transaction',
+    keywords="git acid filesystem transaction",
     author="Chris Rossi",
     author_email="pylons-discuss@googlegroups.com",
     url="http://pylonsproject.org",
@@ -58,8 +58,8 @@ setup(
     install_requires=requires,
     tests_require=tests_require,
     extras_require={
-        'testing': testing_extras,
-        'docs': doc_extras,
+        "testing": testing_extras,
+        "docs": doc_extras,
     },
     test_suite="acidfs.tests",
 )

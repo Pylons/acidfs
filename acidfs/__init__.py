@@ -78,36 +78,45 @@ class AcidFS(object):
 
        Encode paths with this encoding. The default is `ascii`.
     """
+
     session = None
     _cwd = ()
 
-    def __init__(self, repo, head='HEAD', create=True, bare=False,
-                 user_name=None, user_email=None, name='AcidFS',
-                 path_encoding='ascii'):
+    def __init__(
+        self,
+        repo,
+        head="HEAD",
+        create=True,
+        bare=False,
+        user_name=None,
+        user_email=None,
+        name="AcidFS",
+        path_encoding="ascii",
+    ):
         wdpath = repo
-        dbpath = os.path.join(repo, '.git')
+        dbpath = os.path.join(repo, ".git")
         if not os.path.exists(dbpath):
             wdpath = None
             dbpath = repo
-            if not os.path.exists(os.path.join(dbpath, 'HEAD')):
+            if not os.path.exists(os.path.join(dbpath, "HEAD")):
                 if create:
-                    args = ['git', 'init', repo]
+                    args = ["git", "init", repo]
                     if bare:
-                        args.append('--bare')
+                        args.append("--bare")
                     else:
                         wdpath = repo
-                        dbpath = os.path.join(repo, '.git')
+                        dbpath = os.path.join(repo, ".git")
                     _check_output(args)
                     if user_name:
-                        args = ['git', 'config', 'user.name', user_name]
+                        args = ["git", "config", "user.name", user_name]
                         _check_output(args, cwd=dbpath)
                     if user_email:
-                        args = ['git', 'config', 'user.email', user_email]
+                        args = ["git", "config", "user.email", user_email]
                         _check_output(args, cwd=dbpath)
-                    args = ['git', 'config', 'core.quotepath', 'false']
+                    args = ["git", "config", "core.quotepath", "false"]
                     _check_output(args, cwd=dbpath)
                 else:
-                    raise ValueError('No database found in %s' % dbpath)
+                    raise ValueError("No database found in %s" % dbpath)
 
         self.wd = wdpath
         self.db = dbpath
@@ -120,16 +129,17 @@ class AcidFS(object):
         Make sure we're in a session.
         """
         if not self.session or self.session.closed:
-            self.session = _Session(self.wd, self.db, self.head, self.name,
-                                    self.path_encoding)
+            self.session = _Session(
+                self.wd, self.db, self.head, self.name, self.path_encoding
+            )
         return self.session
 
     def _mkpath(self, path):
-        if path == '.':
+        if path == ".":
             parsed = []
         else:
-            parsed = list(filter(None, path.split('/')))
-        if not path.startswith('/'):
+            parsed = list(filter(None, path.split("/")))
+        if not path.startswith("/"):
             parsed = list(self._cwd) + parsed
         return parsed
 
@@ -155,7 +165,7 @@ class AcidFS(object):
         """
         Returns the path to the current working directory in the repository.
         """
-        return '/' + '/'.join(self._cwd)
+        return "/" + "/".join(self._cwd)
 
     def chdir(self, path):
         """
@@ -188,8 +198,9 @@ class AcidFS(object):
         yield
         self._cwd = prev
 
-    def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
-             newline=None):
+    def open(
+        self, path, mode="r", buffering=-1, encoding=None, errors=None, newline=None
+    ):
         """
         Open a file for reading or writing.
 
@@ -208,27 +219,27 @@ class AcidFS(object):
         session = self._session()
         parsed = self._mkpath(path)
 
-        if 'b' in mode:
+        if "b" in mode:
             text = False
-            if 't' in mode:
+            if "t" in mode:
                 raise ValueError("can't have text and binary mode at once")
         else:
             if not buffering:
                 raise ValueError("can't have unbuffered text I/O")
             text = True
 
-        if '+' in mode:
+        if "+" in mode:
             raise ValueError("Read/write mode is not supported")
 
-        mode = mode.replace('b', '')
-        mode = mode.replace('t', '')
-        if mode == 'a':
-            mode = 'w'
+        mode = mode.replace("b", "")
+        mode = mode.replace("t", "")
+        if mode == "a":
+            mode = "w"
             append = True
         else:
             append = False
-        if mode == 'x':
-            mode = 'w'
+        if mode == "x":
+            mode = "w"
             exclusive = True
         else:
             exclusive = False
@@ -243,7 +254,7 @@ class AcidFS(object):
             buffer_size = buffering
             line_buffering = False
 
-        if mode == 'r':
+        if mode == "r":
             obj = session.find(parsed)
             if not obj:
                 raise _NoSuchFileOrDirectory(path)
@@ -254,10 +265,11 @@ class AcidFS(object):
                 stream = io.BufferedReader(stream, buffer_size)
             if text:
                 stream = io.TextIOWrapper(
-                    stream, encoding, errors, newline, line_buffering)
+                    stream, encoding, errors, newline, line_buffering
+                )
             return stream
 
-        elif mode == 'w':
+        elif mode == "w":
             if not parsed:
                 raise _IsADirectory(path)
             name = parsed[-1]
@@ -278,13 +290,12 @@ class AcidFS(object):
             if buffering:
                 blob = io.BufferedWriter(blob, buffer_size)
             if text:
-                blob = io.TextIOWrapper(
-                    blob, encoding, errors, newline, line_buffering)
+                blob = io.TextIOWrapper(blob, encoding, errors, newline, line_buffering)
             return blob
 
         raise ValueError("Bad mode: %s" % mode)
 
-    def hash(self, path=''):
+    def hash(self, path=""):
         """
         Returns the sha1 hash of the object referred to by `path`.  If `path` is
         omitted the current working directory is used.
@@ -295,7 +306,7 @@ class AcidFS(object):
             raise _NoSuchFileOrDirectory(path)
         return obj.hash()
 
-    def listdir(self, path=''):
+    def listdir(self, path=""):
         """
         Return list of files in indicated directory.  If `path` is omitted, the
         current working directory is used.
@@ -453,8 +464,7 @@ class AcidFS(object):
 
 
 class ConflictError(Exception):
-
-    def __init__(self, msg='Unable to merge changes to repository.'):
+    def __init__(self, msg="Unable to merge changes to repository."):
         super(ConflictError, self).__init__(msg)
 
 
@@ -467,22 +477,23 @@ class _Session(object):
         self.db = db
         self.name = name
         self.path_encoding = path_encoding
-        self.lock_file = os.path.join(db, 'acidfs.lock')
+        self.lock_file = os.path.join(db, "acidfs.lock")
         transaction.get().join(self)
 
-        curhead = open(os.path.join(db, 'HEAD')).read().strip()[16:]
+        curhead = open(os.path.join(db, "HEAD")).read().strip()[16:]
         if head == curhead:
-            head = 'HEAD'
-        if head == 'HEAD':
-            self.headref = os.path.join(db, 'refs', 'heads', curhead)
+            head = "HEAD"
+        if head == "HEAD":
+            self.headref = os.path.join(db, "refs", "heads", curhead)
         else:
-            self.headref = os.path.join(db, 'refs', 'heads', head)
+            self.headref = os.path.join(db, "refs", "heads", head)
         self.head = head
 
         if os.path.exists(self.headref):
             # Existing head, get head revision
             self.prev_commit = _check_output(
-                ['git', 'rev-list', '--max-count=1', head], cwd=db).strip()
+                ["git", "rev-list", "--max-count=1", head], cwd=db
+            ).strip()
             self.tree = _TreeNode.read(db, self.prev_commit, path_encoding)
         else:
             # New head, no commits yet
@@ -492,11 +503,12 @@ class _Session(object):
     def set_base(self, ref):
         if self.tree.dirty:
             raise ConflictError(
-                "Cannot set base when changes already made in transaction.")
+                "Cannot set base when changes already made in transaction."
+            )
         self.prev_commit = _check_output(
-            ['git', 'rev-list', '--max-count=1', ref], cwd=self.db).strip()
-        self.tree = _TreeNode.read(self.db, self.prev_commit,
-                                   self.path_encoding)
+            ["git", "rev-list", "--max-count=1", ref], cwd=self.db
+        ).strip()
+        self.tree = _TreeNode.read(self.db, self.prev_commit, self.path_encoding)
 
     def find(self, path):
         assert isinstance(path, (list, tuple))
@@ -559,9 +571,11 @@ class _Session(object):
 
         # Find the merge base
         current = _check_output(
-            ['git', 'rev-list', '--max-count=1', 'HEAD'], cwd=self.db).strip()
+            ["git", "rev-list", "--max-count=1", "HEAD"], cwd=self.db
+        ).strip()
         merge_base = _check_output(
-            ['git', 'merge-base', current, commit_oid], cwd=self.db).strip()
+            ["git", "merge-base", current, commit_oid], cwd=self.db
+        ).strip()
 
         # If the merge base is the current commit, it means there have been no
         # intervening changes and we can just fast forward to the new commit.
@@ -573,7 +587,8 @@ class _Session(object):
         # Darn it, now we have to actually try to merge
         self.merge(merge_base, current, tree_oid)
         self.next_commit = self.mkcommit(
-            tx, self.tree.save(), [current, commit_oid], "Merge")
+            tx, self.tree.save(), [current, commit_oid], "Merge"
+        )
 
     def tpc_finish(self, tx):
         """
@@ -584,24 +599,24 @@ class _Session(object):
             return
 
         # Make our commit the new head
-        if self.head == 'HEAD':
+        if self.head == "HEAD":
             # Use git reset to update current head
-            args = ['git', 'reset', self.next_commit]
+            args = ["git", "reset", self.next_commit]
             if self.wd:
-                args.append('--hard')
+                args.append("--hard")
                 cwd = self.wd
             else:
-                args.append('--soft')
+                args.append("--soft")
                 cwd = self.db
             _check_output(args, cwd=cwd)
 
         else:
             # If not updating current head, just write the commit to the ref
             # file directly.
-            reffile = os.path.join(self.db, 'refs', 'heads', self.head)
-            with open(reffile, 'wb') as f:
+            reffile = os.path.join(self.db, "refs", "heads", self.head)
+            with open(reffile, "wb") as f:
                 f.write(self.next_commit)
-                f.write(b'\n')
+                f.write(b"\n")
 
         self.close()
 
@@ -635,16 +650,16 @@ class _Session(object):
         if not message:
             message = tx.description
         if not message:
-            message = 'AcidFS transaction'
+            message = "AcidFS transaction"
         gitenv = os.environ.copy()
         extension = tx._extension  # "Official" API despite underscore
-        user = extension.get('acidfs_user')
+        user = extension.get("acidfs_user")
         if not user:
-            user = extension.get('user')
+            user = extension.get("user")
             if not user:
                 user = tx.user
                 if user:
-                    if user.startswith(' '):
+                    if user.startswith(" "):
                         user = user[1:]
                     else:
                         # strip Zope's "path"
@@ -654,22 +669,22 @@ class _Session(object):
                         else:
                             user = user[0]
         if user:
-            gitenv['GIT_AUTHOR_NAME'] = gitenv['GIT_COMMITER_NAME'] = user
+            gitenv["GIT_AUTHOR_NAME"] = gitenv["GIT_COMMITER_NAME"] = user
 
-        email = extension.get('acidfs_email')
+        email = extension.get("acidfs_email")
         if not email:
-            email = extension.get('email')
+            email = extension.get("email")
         if email:
-            gitenv['GIT_AUTHOR_EMAIL'] = gitenv['GIT_COMMITTER_EMAIL'] = \
-                gitenv['EMAIL'] = email
+            gitenv["GIT_AUTHOR_EMAIL"] = gitenv["GIT_COMMITTER_EMAIL"] = gitenv[
+                "EMAIL"
+            ] = email
 
         # Write commit to db
-        args = ['git', 'commit-tree', tree_oid, '-m', message]
+        args = ["git", "commit-tree", tree_oid, "-m", message]
         for parent in parents:
-            args.append('-p')
+            args.append("-p")
             args.append(parent)
         return _check_output(args, cwd=self.db, env=gitenv).strip()
-
 
     def merge(self, base_oid, current, tree_oid):
         """
@@ -718,17 +733,21 @@ class _Session(object):
         command might be able to handle that we can't.  I think that's a
         reasonable trade off for the flexibility this approach provides.
         """
-        with _popen(['git', 'merge-tree', base_oid, tree_oid, current],
-                   cwd=self.db, stdout=subprocess.PIPE) as proc:
+        with _popen(
+            ["git", "merge-tree", base_oid, tree_oid, current],
+            cwd=self.db,
+            stdout=subprocess.PIPE,
+        ) as proc:
             # Messy finite state machine
             state = None
             extra_state = None
             stream = proc.stdout
             line = stream.readline()
+
             def expect(expectation, *msg):
-                if not expectation: # pragma no cover
+                if not expectation:  # pragma no cover
                     log.debug("Unmet expectation during merge.")
-                    log.debug(''.join(traceback.format_stack()))
+                    log.debug("".join(traceback.format_stack()))
                     if msg:
                         log.debug(msg[0], *msg[1:])
                     if extra_state:
@@ -736,53 +755,55 @@ class _Session(object):
                     raise ConflictError()
 
             while line:
-                if state is None: # default, scanning for start of a change
+                if state is None:  # default, scanning for start of a change
                     if _isalpha(line[0]):
                         # If first column is a letter, then we have the first
                         # line of a change, which describes the change.
                         line = line.strip()
-                        if line in (b'added in local', b'removed in local',
-                                    b'removed in both'):
+                        if line in (
+                            b"added in local",
+                            b"removed in local",
+                            b"removed in both",
+                        ):
                             # We don't care about changes to our current tree.
                             # We already know about those.
                             pass
 
-                        elif line == b'added in remote':
+                        elif line == b"added in remote":
                             # The head got a new file, we should grab it
                             state = _MERGE_ADDED_IN_REMOTE
                             extra_state = []
 
-                        elif line == b'removed in remote':
+                        elif line == b"removed in remote":
                             # File got deleted from head, remove it
                             state = _MERGE_REMOVED_IN_REMOTE
                             extra_state = []
 
-                        elif line == b'changed in both':
+                        elif line == b"changed in both":
                             # File was edited in both branches, see if we can
                             # patch
                             state = _MERGE_CHANGED_IN_BOTH
                             extra_state = []
 
-                        elif line == b'added in both':
+                        elif line == b"added in both":
                             state = _MERGE_ADDED_IN_BOTH
                             extra_state = []
 
-                        else: # pragma NO COVER
+                        else:  # pragma NO COVER
                             log.debug("Don't know how to merge: %s", line)
                             raise ConflictError()
 
                 elif state is _MERGE_ADDED_IN_REMOTE:
-                    if _isalpha(line[0]) or line.startswith(b'@'):
+                    if _isalpha(line[0]) or line.startswith(b"@"):
                         # Done collecting tree lines, only expecting one
-                        expect(len(extra_state) == 1, 'Wrong number of lines')
+                        expect(len(extra_state) == 1, "Wrong number of lines")
                         whose, mode, oid, path = _parsetree(extra_state[0])
-                        expect(whose == b'their', 'Unexpected whose: %s', whose)
-                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
-                        parsed = path.decode('ascii').split('/')
+                        expect(whose == b"their", "Unexpected whose: %s", whose)
+                        expect(mode == b"100644", "Unexpected mode: %s", mode)
+                        parsed = path.decode("ascii").split("/")
                         folder = self.find(parsed[:-1])
-                        expect(isinstance(folder, _TreeNode),
-                               'Not a folder: %s', path)
-                        folder.set(parsed[-1], (b'blob', oid, None))
+                        expect(isinstance(folder, _TreeNode), "Not a folder: %s", path)
+                        folder.set(parsed[-1], (b"blob", oid, None))
                         state = extra_state = None
                         continue
 
@@ -790,21 +811,23 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_REMOVED_IN_REMOTE:
-                    if _isalpha(line[0]) or line.startswith(b'@'):
+                    if _isalpha(line[0]) or line.startswith(b"@"):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
-                        expect(len(extra_state) == 2, 'Wrong number of lines')
+                        expect(len(extra_state) == 2, "Wrong number of lines")
                         whose, mode, oid, path = _parsetree(extra_state[0])
-                        expect(whose in (b'our', b'base'),
-                               'Unexpected whose: %s', whose)
-                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
+                        expect(
+                            whose in (b"our", b"base"), "Unexpected whose: %s", whose
+                        )
+                        expect(mode == b"100644", "Unexpected mode: %s", mode)
                         whose, mode, oid2, path2 = _parsetree(extra_state[1])
-                        expect(whose in (b'our', b'base'),
-                               'Unexpected whose: %s', whose)
-                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
+                        expect(
+                            whose in (b"our", b"base"), "Unexpected whose: %s", whose
+                        )
+                        expect(mode == b"100644", "Unexpected mode: %s", mode)
                         expect(oid == oid2, "SHA1s don't match")
                         expect(path == path2, "Paths don't match")
-                        path = path.decode('ascii').split('/')
+                        path = path.decode("ascii").split("/")
                         folder = self.find(path[:-1])
                         expect(isinstance(folder, _TreeNode), "Not a folder")
                         folder.remove(path[-1])
@@ -815,41 +838,48 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_CHANGED_IN_BOTH:
-                    if line.startswith(b'@'):
+                    if line.startswith(b"@"):
                         # Done collecting tree lines, expect three, one for base
                         # and one for each copy
-                        expect(len(extra_state) == 3, 'Wrong number of lines')
+                        expect(len(extra_state) == 3, "Wrong number of lines")
                         whose, mode, oid, path = _parsetree(extra_state[0])
-                        expect(whose in (b'base', b'our', b'their'),
-                               'Unexpected whose: %s', whose)
-                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
+                        expect(
+                            whose in (b"base", b"our", b"their"),
+                            "Unexpected whose: %s",
+                            whose,
+                        )
+                        expect(mode == b"100644", "Unexpected mode: %s", mode)
                         for extra_line in extra_state[1:]:
                             whose, mode, oid2, path2 = _parsetree(extra_line)
-                            expect(whose in (b'base', b'our', b'their'),
-                                   'Unexpected whose: %s', whose)
-                            expect(mode == b'100644', 'Unexpected mode: %s',
-                                   mode)
+                            expect(
+                                whose in (b"base", b"our", b"their"),
+                                "Unexpected whose: %s",
+                                whose,
+                            )
+                            expect(mode == b"100644", "Unexpected mode: %s", mode)
                             expect(path == path2, "Paths don't match")
-                        parsed = path.decode('ascii').split('/')
+                        parsed = path.decode("ascii").split("/")
                         folder = self.find(parsed[:-1])
                         expect(isinstance(folder, _TreeNode), "Not a folder")
                         name = parsed[-1]
                         blob = folder.get(name)
                         expect(isinstance(blob, _Blob), "Not a blob")
                         with _tempfile() as tmp:
-                            shutil.copyfileobj(blob.open(), open(tmp, 'wb'))
-                            with _popen(['patch', '-s', tmp, '-'],
-                                       stdin=subprocess.PIPE,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE) as p:
+                            shutil.copyfileobj(blob.open(), open(tmp, "wb"))
+                            with _popen(
+                                ["patch", "-s", tmp, "-"],
+                                stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                            ) as p:
                                 f = p.stdin
                                 while line and not _isalpha(line[0]):
-                                    if line[1:9] == b'<<<<<<< ':
+                                    if line[1:9] == b"<<<<<<< ":
                                         raise ConflictError()
                                     f.write(line)
                                     line = stream.readline()
                             newblob = folder.new_blob(name, blob)
-                            shutil.copyfileobj(open(tmp, 'rb'), newblob)
+                            shutil.copyfileobj(open(tmp, "rb"), newblob)
 
                         state = extra_state = None
                         continue
@@ -858,18 +888,20 @@ class _Session(object):
                         extra_state.append(line)
 
                 elif state is _MERGE_ADDED_IN_BOTH:
-                    if _isalpha(line[0]) or line.startswith(b'@'):
+                    if _isalpha(line[0]) or line.startswith(b"@"):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
-                        expect(len(extra_state) == 2, 'Wrong number of lines')
+                        expect(len(extra_state) == 2, "Wrong number of lines")
                         whose, mode, oid, path = _parsetree(extra_state[0])
-                        expect(whose in (b'our', b'their'), 'Unexpected whose: %s',
-                               whose)
-                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
+                        expect(
+                            whose in (b"our", b"their"), "Unexpected whose: %s", whose
+                        )
+                        expect(mode == b"100644", "Unexpected mode: %s", mode)
                         whose, mode, oid2, path2 = _parsetree(extra_state[1])
-                        expect(whose in (b'our', b'their'),
-                               'Unexpected whose: %s', whose)
-                        expect(mode == b'100644', 'Unexpected mode: %s', mode)
+                        expect(
+                            whose in (b"our", b"their"), "Unexpected whose: %s", whose
+                        )
+                        expect(mode == b"100644", "Unexpected mode: %s", mode)
                         expect(path == path2, "Paths don't match")
                         # Either it's the same file or a different file.
                         if oid != oid2:
@@ -897,8 +929,7 @@ class _TreeNode(object):
         node = cls(db, path_encoding)
         node.oid = oid
         contents = node.contents
-        with _popen(['git', 'ls-tree', oid],
-                   stdout=subprocess.PIPE, cwd=db) as lstree:
+        with _popen(["git", "ls-tree", oid], stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
                 mode, type, oid, name = _parsetree(line)
                 name = name.decode(path_encoding)
@@ -918,9 +949,9 @@ class _TreeNode(object):
         if not obj:
             return None
         type, oid, obj = obj
-        assert type in (b'tree', b'blob')
+        assert type in (b"tree", b"blob")
         if not obj:
-            if type == b'tree':
+            if type == b"tree":
                 obj = _TreeNode.read(self.db, oid, self.path_encoding)
             else:
                 obj = _Blob(self.db, oid)
@@ -940,7 +971,7 @@ class _TreeNode(object):
         obj = _NewBlob(self.db, prev)
         obj.parent = self
         obj.name = name
-        self.contents[name] = (b'blob', None, weakref.proxy(obj))
+        self.contents[name] = (b"blob", None, weakref.proxy(obj))
         self.set_dirty()
         return obj
 
@@ -948,7 +979,7 @@ class _TreeNode(object):
         node = _TreeNode(self.db, self.path_encoding)
         node.parent = self
         node.name = name
-        self.contents[name] = (b'tree', None, node)
+        self.contents[name] = (b"tree", None, node)
         self.set_dirty()
         return node
 
@@ -964,10 +995,14 @@ class _TreeNode(object):
     def set_dirty(self):
         node = self
         while node and not node.dirty:
-            node.prev_oid = _check_output(
-                ["git", "rev-parse", "{}^{{tree}}".format(_s(node.oid))],
-                cwd=self.db
-            ).strip() if node.oid else None
+            node.prev_oid = (
+                _check_output(
+                    ["git", "rev-parse", "{}^{{tree}}".format(_s(node.oid))],
+                    cwd=self.db,
+                ).strip()
+                if node.oid
+                else None
+            )
             node.oid = None
             node.dirty = True
             node = node.parent
@@ -976,25 +1011,29 @@ class _TreeNode(object):
         # Recursively save children, first
         for name, (type, oid, obj) in list(self.contents.items()):
             if not obj:
-                continue # Nothing to do
+                continue  # Nothing to do
             if isinstance(obj, _NewBlob):
                 raise ValueError("Cannot commit transaction with open files.")
-            elif type == b'tree' and (obj.dirty or not oid):
+            elif type == b"tree" and (obj.dirty or not oid):
                 new_oid = obj.save()
-                self.contents[name] = (b'tree', new_oid, None)
+                self.contents[name] = (b"tree", new_oid, None)
 
         # Save tree object out to database
-        with _popen(['git', 'mktree'], cwd=self.db,
-                   stdin=subprocess.PIPE, stdout=subprocess.PIPE) as proc:
+        with _popen(
+            ["git", "mktree"],
+            cwd=self.db,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        ) as proc:
             for name, (type, oid, obj) in self.contents.items():
-                proc.stdin.write(b'100644' if type == b'blob' else b'040000')
-                proc.stdin.write(b' ')
+                proc.stdin.write(b"100644" if type == b"blob" else b"040000")
+                proc.stdin.write(b" ")
                 proc.stdin.write(type)
-                proc.stdin.write(b' ')
+                proc.stdin.write(b" ")
                 proc.stdin.write(_b(oid))
-                proc.stdin.write(b'\t')
+                proc.stdin.write(b"\t")
                 proc.stdin.write(name.encode(self.path_encoding))
-                proc.stdin.write(b'\n')
+                proc.stdin.write(b"\n")
             proc.stdin.close()
             oid = proc.stdout.read().strip()
         self.oid = _s(oid)
@@ -1017,7 +1056,6 @@ def _parsetree(line):
 
 
 class _Blob(object):
-
     def __init__(self, db, oid):
         self.db = db
         self.oid = oid
@@ -1034,15 +1072,17 @@ class _Blob(object):
 
 
 class _NewBlob(io.RawIOBase):
-
     def __init__(self, db, prev):
         self.db = db
         self.prev = prev
 
         self.proc = subprocess.Popen(
-            ['git', 'hash-object', '-w', '--stdin'],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, cwd=db)
+            ["git", "hash-object", "-w", "--stdin"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=db,
+        )
 
     def write(self, b):
         self.proc.stdin.write(b)
@@ -1057,8 +1097,9 @@ class _NewBlob(io.RawIOBase):
             retcode = self.proc.wait()
             if retcode != 0:
                 raise subprocess.CalledProcessError(
-                    retcode, 'git hash-object -w --stdin')
-            self.parent.contents[self.name] = (b'blob', _s(oid), None)
+                    retcode, "git hash-object -w --stdin"
+                )
+            self.parent.contents[self.name] = (b"blob", _s(oid), None)
 
     def writable(self):
         return True
@@ -1079,11 +1120,13 @@ class _NewBlob(io.RawIOBase):
 
 
 class _BlobStream(io.RawIOBase):
-
     def __init__(self, db, oid):
         self.proc = subprocess.Popen(
-            ['git', 'cat-file', 'blob', oid],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=db)
+            ["git", "cat-file", "blob", oid],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=db,
+        )
         self.oid = oid
 
     def readable(self):
@@ -1113,7 +1156,8 @@ class _BlobStream(io.RawIOBase):
             retcode = self.proc.wait()
             if retcode != 0:
                 raise subprocess.CalledProcessError(
-                    retcode, 'git cat-file blob %s' % self.oid)
+                    retcode, "git cat-file blob %s" % self.oid
+                )
 
 
 def _object_path(obj):
@@ -1122,7 +1166,7 @@ def _object_path(obj):
     while node.parent:
         path.insert(0, node.name)
         node = node.parent
-    return '/'.join(path)
+    return "/".join(path)
 
 
 @contextlib.contextmanager
@@ -1139,30 +1183,30 @@ def _popen(args, **kw):
 
 @contextlib.contextmanager
 def _tempfile():
-    fd, tmp = tempfile.mkstemp('.acidfs-merge')
+    fd, tmp = tempfile.mkstemp(".acidfs-merge")
     os.close(fd)
     yield tmp
     os.remove(tmp)
 
 
 def _NoSuchFileOrDirectory(path):
-    return IOError(2, 'No such file or directory', path)
+    return IOError(2, "No such file or directory", path)
 
 
 def _IsADirectory(path):
-    return IOError(21, 'Is a directory', path)
+    return IOError(21, "Is a directory", path)
 
 
 def _NotADirectory(path):
-    return IOError(20, 'Not a directory', path)
+    return IOError(20, "Not a directory", path)
 
 
 def _FileExists(path):
-    return IOError(17, 'File exists', path)
+    return IOError(17, "File exists", path)
 
 
 def _DirectoryNotEmpty(path):
-    return IOError(39, 'Directory not empty', path)
+    return IOError(39, "Directory not empty", path)
 
 
 _MERGE_ADDED_IN_REMOTE = object()
@@ -1175,13 +1219,13 @@ try:
     # Python >= 2.7
     _check_output = subprocess.check_output
 except AttributeError:  # pragma NO COVER
+
     def _check_output(*popenargs, **kwargs):
         """
         Stolen straight from Python 2.7.
         """
-        if 'stdout' in kwargs:
-            raise ValueError(
-                'stdout argument not allowed, it will be overridden.')
+        if "stdout" in kwargs:
+            raise ValueError("stdout argument not allowed, it will be overridden.")
         process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
         output, unused_err = process.communicate()
         retcode = process.poll()
@@ -1197,18 +1241,19 @@ if sys.version_info[0] == 2:  # pragma NO COVER
     _b = lambda s: s
     _s = lambda b: b
     _isalpha = lambda s: s.isalpha()
-else:                         # pragma NO COVER
+else:  # pragma NO COVER
+
     def _b(s):
         if isinstance(s, str):
-            s = bytes(s, 'ascii')
+            s = bytes(s, "ascii")
         return s
 
     def _s(b):
         if isinstance(b, bytes):
-            b = str(b, 'ascii')
+            b = str(b, "ascii")
         return b
 
-    aa, zz, AA, ZZ = ord('a'), ord('z'), ord('A'), ord('Z')
+    aa, zz, AA, ZZ = ord("a"), ord("z"), ord("A"), ord("Z")
+
     def _isalpha(b):
         return aa <= b <= zz or AA <= b <= ZZ
-
