@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 import transaction
 
+from unittest import mock
+
 from acidfs import AcidFS, _check_output
 
 
@@ -619,238 +621,244 @@ def test_nochange_commit(factory, tmp):
     assert count_commits(tmp) == 1
 
 
-"""
-def test_conflict_error_on_first_commit(self):
+def test_conflict_error_on_first_commit(factory, tmp):
     from acidfs import ConflictError
-    fs = self.make_one()
-    fs.open('foo', 'wb').write(b'Hello!')
-    open(os.path.join(self.tmp, 'foo'), 'wb').write(b'Howdy!')
-    _check_output(['git', 'add', '.'], cwd=self.tmp)
-    _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
-    with self.assertRaises(ConflictError):
+
+    fs = factory()
+    fs.open("foo", "wb").write(b"Hello!")
+    open(os.path.join(tmp, "foo"), "wb").write(b"Howdy!")
+    _check_output(["git", "add", "."], cwd=tmp)
+    _check_output(["git", "commit", "-m", "Haha!  First!"], cwd=tmp)
+    with pytest.raises(ConflictError):
         transaction.commit()
 
 
-def test_unable_to_merge_file(self):
+def test_unable_to_merge_file(factory, tmp):
     from acidfs import ConflictError
-    fs = self.make_one()
-    fs.open('foo', 'wb').write(b'Hello!')
+
+    fs = factory()
+    fs.open("foo", "wb").write(b"Hello!")
     transaction.commit()
-    fs.open('foo', 'wb').write(b'Party!')
-    open(os.path.join(self.tmp, 'foo'), 'wb').write(b'Howdy!')
-    _check_output(['git', 'add', '.'], cwd=self.tmp)
-    _check_output(['git', 'commit', '-m', 'Haha!  First!'], cwd=self.tmp)
-    with self.assertRaises(ConflictError):
+    fs.open("foo", "wb").write(b"Party!")
+    open(os.path.join(tmp, "foo"), "wb").write(b"Howdy!")
+    _check_output(["git", "add", "."], cwd=tmp)
+    _check_output(["git", "commit", "-m", "Haha!  First!"], cwd=tmp)
+    with pytest.raises(ConflictError):
         transaction.commit()
 
 
-def test_merge_add_file(self):
-    fs = self.make_one()
-    fs.open('foo', 'wb').write(b'Hello!\n')
+def test_merge_add_file(factory, tmp):
+    fs = factory()
+    fs.open("foo", "wb").write(b"Hello!\n")
     transaction.commit()
 
-    fs.open('bar', 'wb').write(b'Howdy!\n')
-    open(os.path.join(self.tmp, 'baz'), 'wb').write(b'Ciao!\n')
-    _check_output(['git', 'add', 'baz'], cwd=self.tmp)
-    _check_output(['git', 'commit', '-m', 'haha'], cwd=self.tmp)
+    fs.open("bar", "wb").write(b"Howdy!\n")
+    open(os.path.join(tmp, "baz"), "wb").write(b"Ciao!\n")
+    _check_output(["git", "add", "baz"], cwd=tmp)
+    _check_output(["git", "commit", "-m", "haha"], cwd=tmp)
     transaction.commit()
 
-    self.assertTrue(fs.exists('foo'))
-    self.assertTrue(fs.exists('bar'))
-    self.assertTrue(fs.exists('baz'))
+    assert fs.exists("foo")
+    assert fs.exists("bar")
+    assert fs.exists("baz")
 
 
-def test_merge_rm_file(self):
-    fs = self.make_one(head='master')
-    fs.open('foo', 'wb').write(b'Hello\n')
-    fs.open('bar', 'wb').write(b'Grazie\n')
-    fs.open('baz', 'wb').write(b'Prego\n')
+def test_merge_rm_file(factory, tmp):
+    fs = factory(head="master")
+    fs.open("foo", "wb").write(b"Hello\n")
+    fs.open("bar", "wb").write(b"Grazie\n")
+    fs.open("baz", "wb").write(b"Prego\n")
     transaction.commit()
 
-    fs.rm('foo')
-    _check_output(['git', 'rm', 'baz'], cwd=self.tmp)
-    _check_output(['git', 'commit', '-m', 'gotcha'], cwd=self.tmp)
+    fs.rm("foo")
+    _check_output(["git", "rm", "baz"], cwd=tmp)
+    _check_output(["git", "commit", "-m", "gotcha"], cwd=tmp)
     transaction.commit()
 
-    self.assertFalse(fs.exists('foo'))
-    self.assertTrue(fs.exists('bar'))
-    self.assertFalse(fs.exists('baz'))
+    assert not fs.exists("foo")
+    assert fs.exists("bar")
+    assert not fs.exists("baz")
 
 
-def test_merge_rm_same_file(self):
-    fs = self.make_one(head='master')
-    fs.open('foo', 'wb').write(b'Hello\n')
-    fs.open('bar', 'wb').write(b'Grazie\n')
+def test_merge_rm_same_file(factory, tmp):
+    fs = factory(head="master")
+    fs.open("foo", "wb").write(b"Hello\n")
+    fs.open("bar", "wb").write(b"Grazie\n")
     transaction.commit()
 
     base = fs.get_base()
-    fs.rm('foo')
+    fs.rm("foo")
     transaction.commit()
 
     fs.set_base(base)
-    fs.rm('foo')
+    fs.rm("foo")
     # Do something else besides, so commit has different sha1
-    fs.open('baz', 'wb').write(b'Prego\n')
+    fs.open("baz", "wb").write(b"Prego\n")
     transaction.commit()
 
-    self.assertFalse(fs.exists('foo'))
-    self.assertTrue(fs.exists('bar'))
+    assert not fs.exists("foo")
+    assert fs.exists("bar")
 
 
-def test_merge_add_same_file(self):
-    fs = self.make_one(head='master')
-    fs.open('foo', 'wb').write(b'Hello\n')
+def test_merge_add_same_file(factory):
+    fs = factory(head="master")
+    fs.open("foo", "wb").write(b"Hello\n")
     transaction.commit()
 
     base = fs.get_base()
-    fs.open('bar', 'wb').write(b'Grazie\n')
+    fs.open("bar", "wb").write(b"Grazie\n")
     transaction.commit()
 
     fs.set_base(base)
-    fs.open('bar', 'wb').write(b'Grazie\n')
+    fs.open("bar", "wb").write(b"Grazie\n")
     # Do something else besides, so commit has different sha1
-    fs.open('baz', 'wb').write(b'Prego\n')
+    fs.open("baz", "wb").write(b"Prego\n")
     transaction.commit()
 
-    self.assertEqual(fs.open('bar', 'rb').read(), b'Grazie\n')
+    assert fs.open("bar", "rb").read() == b"Grazie\n"
 
 
-def test_merge_add_different_file_same_path(self):
+def test_merge_add_different_file_same_path(factory):
     from acidfs import ConflictError
-    fs = self.make_one(head='master')
-    fs.open('foo', 'wb').write(b'Hello\n')
+
+    fs = factory(head="master")
+    fs.open("foo", "wb").write(b"Hello\n")
     transaction.commit()
 
     base = fs.get_base()
-    fs.open('bar', 'wb').write(b'Grazie\n')
+    fs.open("bar", "wb").write(b"Grazie\n")
     transaction.commit()
 
     fs.set_base(base)
-    fs.open('bar', 'wb').write(b'Prego\n')
-    with self.assertRaises(ConflictError):
+    fs.open("bar", "wb").write(b"Prego\n")
+    with pytest.raises(ConflictError):
         transaction.commit()
 
 
-def test_merge_file(self):
-    fs = self.make_one()
-    with fs.open('foo', 'wb') as f:
-        fprint(f, b'One')
-        fprint(f, b'Two')
-        fprint(f, b'Three')
-        fprint(f, b'Four')
-        fprint(f, b'Five')
+def test_merge_file(factory):
+    fs = factory()
+    with fs.open("foo", "wb") as f:
+        fprint(f, b"One")
+        fprint(f, b"Two")
+        fprint(f, b"Three")
+        fprint(f, b"Four")
+        fprint(f, b"Five")
     transaction.commit()
 
     base = fs.get_base()
-    with fs.open('foo', 'wb') as f:
-        fprint(f, b'One')
-        fprint(f, b'Dos')
-        fprint(f, b'Three')
-        fprint(f, b'Four')
-        fprint(f, b'Five')
+    with fs.open("foo", "wb") as f:
+        fprint(f, b"One")
+        fprint(f, b"Dos")
+        fprint(f, b"Three")
+        fprint(f, b"Four")
+        fprint(f, b"Five")
     transaction.commit()
 
     fs.set_base(base)
-    with fs.open('foo', 'ab') as f:
-        fprint(f, b'Sei')
+    with fs.open("foo", "ab") as f:
+        fprint(f, b"Sei")
     transaction.commit()
 
-    self.assertEqual(list(fs.open('foo', 'rb').readlines()), [
-        b'One\n',
-        b'Dos\n',
-        b'Three\n',
-        b'Four\n',
-        b'Five\n',
-        b'Sei\n'])
+    assert list(fs.open("foo", "rb").readlines()) == [
+        b"One\n",
+        b"Dos\n",
+        b"Three\n",
+        b"Four\n",
+        b"Five\n",
+        b"Sei\n",
+    ]
 
 
-def test_set_base(self):
+def test_set_base(factory):
     from acidfs import ConflictError
-    fs = self.make_one()
-    fs.open('foo', 'wb').write(b'Hello\n')
+
+    fs = factory()
+    fs.open("foo", "wb").write(b"Hello\n")
     transaction.commit()
 
     base = fs.get_base()
-    fs.open('bar', 'wb').write(b'Grazie\n')
-    with self.assertRaises(ConflictError):
-        fs.set_base('whatever')
+    fs.open("bar", "wb").write(b"Grazie\n")
+    with pytest.raises(ConflictError):
+        fs.set_base("whatever")
     transaction.commit()
 
     fs.set_base(base)
-    self.assertTrue(fs.exists('foo'))
-    self.assertFalse(fs.exists('bar'))
-    fs.open('baz', 'wb').write(b'Prego\n')
+    assert fs.exists("foo")
+    assert not fs.exists("bar")
+    fs.open("baz", "wb").write(b"Prego\n")
     transaction.commit()
 
-    self.assertTrue(fs.exists('foo'))
-    self.assertTrue(fs.exists('bar'))
-    self.assertTrue(fs.exists('baz'))
+    assert fs.exists("foo")
+    assert fs.exists("bar")
+    assert fs.exists("baz")
 
 
-def test_use_other_branch(self):
-    fs = self.make_one(head='foo')
-    fs.open('foo', 'wb').write(b'Hello\n')
+def test_use_other_branch(factory):
+    fs = factory(head="foo")
+    fs.open("foo", "wb").write(b"Hello\n")
     transaction.commit()
 
-    fs2 = self.make_one()
-    fs2.open('foo', 'wb').write(b'Howdy!\n')
+    fs2 = factory()
+    fs2.open("foo", "wb").write(b"Howdy!\n")
     transaction.commit()
 
-    self.assertEqual(fs.open('foo', 'rb').read(), b'Hello\n')
-    self.assertEqual(fs2.open('foo', 'rb').read(), b'Howdy!\n')
+    assert fs.open("foo", "rb").read() == b"Hello\n"
+    assert fs2.open("foo", "rb").read() == b"Howdy!\n"
 
 
-def test_branch_and_then_merge(self):
-    fs = self.make_one()
-    fs.open('foo', 'wb').write(b'Hello')
+def test_branch_and_then_merge(factory, tmp):
+    fs = factory()
+    fs.open("foo", "wb").write(b"Hello")
     transaction.commit()
 
-    fs2 = self.make_one(head='abranch')
+    fs2 = factory(head="abranch")
     fs2.set_base(fs.get_base())
-    fs2.open('bar', 'wb').write(b'Ciao')
-    fs.open('baz', 'wb').write(b'Hola')
+    fs2.open("bar", "wb").write(b"Ciao")
+    fs.open("baz", "wb").write(b"Hola")
     transaction.commit()
 
-    fs.set_base('abranch')
-    fs.open('beez', 'wb').write(b'buzz')
+    fs.set_base("abranch")
+    fs.open("beez", "wb").write(b"buzz")
     transaction.commit()
 
-    self.assertTrue(fs.exists('foo'))
-    self.assertTrue(fs.exists('bar'))
-    self.assertTrue(fs.exists('baz'))
-    self.assertTrue(fs.exists('beez'))
-    self.assertTrue(fs2.exists('foo'))
-    self.assertTrue(fs2.exists('bar'))
-    self.assertFalse(fs2.exists('baz'))
-    self.assertFalse(fs2.exists('beez'))
+    assert fs.exists("foo")
+    assert fs.exists("bar")
+    assert fs.exists("baz")
+    assert fs.exists("beez")
+    assert fs2.exists("foo")
+    assert fs2.exists("bar")
+    assert not fs2.exists("baz")
+    assert not fs2.exists("beez")
 
     # Expecting two parents for commit since it's a merge
-    commit = _check_output(
-        ['git', 'cat-file', '-p', 'HEAD^{commit}'],
-        cwd=self.tmp).decode('ascii').split('\n')
-    self.assertTrue(commit[1].startswith('parent'))
-    self.assertTrue(commit[2].startswith('parent'))
+    commit = (
+        _check_output(["git", "cat-file", "-p", "HEAD^{commit}"], cwd=tmp)
+        .decode("ascii")
+        .split("\n")
+    )
+    assert commit[1].startswith("parent")
+    assert commit[2].startswith("parent")
 
 
-def test_directory_name_with_spaces(self):
-    fs = self.make_one()
+def test_directory_name_with_spaces(factory):
+    fs = factory()
     fs.mkdir("foo bar")
     with fs.cd("foo bar"):
         fs.open("foo", "wb").write(b"bar")
     transaction.commit()
 
     with fs.cd("foo bar"):
-        self.assertTrue(fs.open("foo", "rb").read(), b"bar")
+        assert fs.open("foo", "rb").read() == b"bar"
 
 
-@mock.patch('acidfs.subprocess.Popen')
+@mock.patch("acidfs.subprocess.Popen")
 def test_called_process_error(Popen):
     from acidfs import _popen
+
     Popen.return_value.return_value.wait.return_value = 1
-    with self.assertRaises(subprocess.CalledProcessError):
-        with _popen(['what', 'ever']):
+    with pytest.raises(subprocess.CalledProcessError):
+        with _popen(["what", "ever"]):
             pass
-"""
 
 
 def fprint(f, s):

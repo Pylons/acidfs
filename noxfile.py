@@ -30,7 +30,7 @@ def unit(session):
                 "--cov-report=term-missing",
             ]
         )
-    run_args.append(get_path("tests"))
+    run_args.append(get_path("tests.py"))
     session.run(*run_args)
 
 
@@ -44,7 +44,7 @@ def run_black(session, use_check=False):
             get_path("noxfile.py"),
             get_path("setup.py"),
             get_path("acidfs"),
-            get_path("tests"),
+            get_path("tests.py"),
         ]
     )
 
@@ -60,7 +60,7 @@ def lint(session):
     """
     session.install("flake8", "black")
     run_black(session, use_check=True)
-    session.run("flake8", "acidfs", "tests", "setup.py")
+    session.run("flake8", "acidfs", "tests.py", "setup.py")
 
 
 @nox.session(py=DEFAULT_INTERPRETER)
