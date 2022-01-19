@@ -491,7 +491,15 @@ class _Session(object):
             self.prev_commit = _check_output(
                 ["git", "rev-list", "--max-count=1", head], cwd=db
             ).strip()
-            self.tree = _TreeNode.read(db, self.prev_commit, path_encoding)
+            tree = _check_output(
+                [
+                    "git",
+                    "rev-parse",
+                    f"{self.prev_commit.decode('ascii')}^{{tree}}",
+                ],
+                cwd=self.db,
+            ).strip()
+            self.tree = _TreeNode.read(db, tree, path_encoding)
         else:
             # New head, no commits yet
             self.tree = _TreeNode(db, path_encoding)  # empty tree
@@ -537,7 +545,7 @@ class _Session(object):
 
         # Write tree to db
         tree_oid = self.tree.save()
-        if self.tree.prev_oid == tree_oid:
+        if self.tree.committed_oid == tree_oid:
             # Nothing actually changed
             self.tree.dirty = False
             return
@@ -930,12 +938,12 @@ class _TreeNode(object):
     name = None
     dirty = False
     oid = None
-    prev_oid = None
+    committed_oid = None
 
     @classmethod
     def read(cls, db, oid, path_encoding):
         node = cls(db, path_encoding)
-        node.oid = oid
+        node.committed_oid = node.oid = oid
         contents = node.contents
         with _popen(["git", "ls-tree", oid], stdout=subprocess.PIPE, cwd=db) as lstree:
             for line in lstree.stdout.readlines():
@@ -1002,18 +1010,6 @@ class _TreeNode(object):
     def set_dirty(self):
         node = self
         while node and not node.dirty:
-            node.prev_oid = (
-                _check_output(
-                    [
-                        "git",
-                        "rev-parse",
-                        f"{node.oid.decode('ascii')}^{{tree}}",
-                    ],
-                    cwd=self.db,
-                ).strip()
-                if node.oid
-                else None
-            )
             node.oid = None
             node.dirty = True
             node = node.parent
