@@ -97,25 +97,24 @@ class AcidFS(object):
         if not os.path.exists(dbpath):
             wdpath = None
             dbpath = repo
-            if not os.path.exists(os.path.join(dbpath, "HEAD")):
-                if create:
-                    args = ["git", "init", repo]
-                    if bare:
-                        args.append("--bare")
-                    else:
-                        wdpath = repo
-                        dbpath = os.path.join(repo, ".git")
-                    _check_output(args)
-                    if user_name:
-                        args = ["git", "config", "user.name", user_name]
-                        _check_output(args, cwd=dbpath)
-                    if user_email:
-                        args = ["git", "config", "user.email", user_email]
-                        _check_output(args, cwd=dbpath)
-                    args = ["git", "config", "core.quotepath", "false"]
-                    _check_output(args, cwd=dbpath)
+            if create:
+                args = ["git", "init", repo]
+                if bare:
+                    args.append("--bare")
                 else:
-                    raise ValueError("No database found in %s" % dbpath)
+                    wdpath = repo
+                    dbpath = os.path.join(repo, ".git")
+                _check_output(args)
+                if user_name:
+                    args = ["git", "config", "user.name", user_name]
+                    _check_output(args, cwd=dbpath)
+                if user_email:
+                    args = ["git", "config", "user.email", user_email]
+                    _check_output(args, cwd=dbpath)
+                args = ["git", "config", "core.quotepath", "false"]
+                _check_output(args, cwd=dbpath)
+            else:
+                raise ValueError("No database found in %s" % dbpath)
 
         self.wd = wdpath
         self.db = dbpath
@@ -421,12 +420,11 @@ class AcidFS(object):
         dpath = self._mkpath(dst)
         dobj = session.find(dpath)
         if not dobj:
-            if dpath:
-                dname = dpath[-1]
-                dfolder = session.find(dpath[:-1])
-                if dfolder:
-                    dfolder.set(dname, sfolder.remove(sname))
-                    return
+            dname = dpath[-1]
+            dfolder = session.find(dpath[:-1])
+            if dfolder:
+                dfolder.set(dname, sfolder.remove(sname))
+                return
             raise _NoSuchFileOrDirectory(dst)
         if isinstance(dobj, _TreeNode):
             dobj.set(sname, sfolder.remove(sname))
@@ -511,9 +509,7 @@ class _Session(object):
 
     def find(self, path):
         assert isinstance(path, (list, tuple))
-        tree = self.tree
-        if tree:
-            return tree.find(path)
+        return self.tree.find(path)
 
     def abort(self, tx):
         """
@@ -731,6 +727,10 @@ class _Session(object):
         cases here, even if there are some rare corner cases the porcelain
         command might be able to handle that we can't.  I think that's a
         reasonable trade off for the flexibility this approach provides.
+
+        Some dead/unreachable branches are left in here, just in case we haven't
+        entirely characterized the behavior of 'git merge-tree'. These are marked with
+        'pragma NO COVER' and are easily recognized.
         """
         with _popen(
             ["git", "merge-tree", base_oid, tree_oid, current],
@@ -763,7 +763,8 @@ class _Session(object):
                             b"added in local",
                             b"removed in local",
                             b"removed in both",
-                        ):
+                        ):  # pragma NO COVER
+                            # This doesn't seem to come up in practice
                             # We don't care about changes to our current tree.
                             # We already know about those.
                             pass
@@ -886,7 +887,11 @@ class _Session(object):
                     else:
                         extra_state.append(line)
 
-                elif state is _MERGE_ADDED_IN_BOTH:
+                elif state is _MERGE_ADDED_IN_BOTH:  # pragma NO BRANCH
+                    # NO BRANCH pragma added to workaround what seems to be a bug in
+                    # coverage. This if..elif structure handles every case that's thrown
+                    # at it, but coverage seems concerned that there isn't a case that
+                    # doesn't get handled.
                     if line[0:1].isalpha() or line.startswith(b"@"):
                         # Done collecting tree lines, expect two, one for base,
                         # one for our copy, whose sha1s should match
@@ -906,9 +911,13 @@ class _Session(object):
                         if oid != oid2:
                             # Different files, can't merge
                             raise ConflictError()
-                        # Same file, nothing to do
-                        state = extra_state = None
-                        continue
+
+                        else:  # pragma NO COVER
+                            # Seems to not come up. Probably merge-tree detects this and
+                            # doesn't bother us about it.
+                            # Same file, nothing to do
+                            state = extra_state = None
+                            continue
 
                     else:
                         extra_state.append(line)
@@ -1091,17 +1100,14 @@ class _NewBlob(io.RawIOBase):
         return len(b)
 
     def close(self):
-        if not self.closed:
-            super(_NewBlob, self).close()
-            self.proc.stdin.close()
-            oid = self.proc.stdout.read().strip()
-            self.proc.stdout.close()
-            retcode = self.proc.wait()
-            if retcode != 0:
-                raise subprocess.CalledProcessError(
-                    retcode, "git hash-object -w --stdin"
-                )
-            self.parent.contents[self.name] = (b"blob", oid, None)
+        super(_NewBlob, self).close()
+        self.proc.stdin.close()
+        oid = self.proc.stdout.read().strip()
+        self.proc.stdout.close()
+        retcode = self.proc.wait()
+        if retcode != 0:
+            raise subprocess.CalledProcessError(retcode, "git hash-object -w --stdin")
+        self.parent.contents[self.name] = (b"blob", oid, None)
 
     def writable(self):
         return True
@@ -1151,15 +1157,14 @@ class _BlobStream(io.RawIOBase):
         return self.proc.stdout.readinto(b)
 
     def close(self):
-        if not self.closed:
-            super(_BlobStream, self).close()
-            self.proc.stdout.close()
-            self.proc.stderr.close()
-            retcode = self.proc.wait()
-            if retcode != 0:
-                raise subprocess.CalledProcessError(
-                    retcode, "git cat-file blob %s" % self.oid
-                )
+        super(_BlobStream, self).close()
+        self.proc.stdout.close()
+        self.proc.stderr.close()
+        retcode = self.proc.wait()
+        if retcode != 0:
+            raise subprocess.CalledProcessError(
+                retcode, "git cat-file blob %s" % self.oid
+            )
 
 
 def _object_path(obj):

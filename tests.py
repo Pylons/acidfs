@@ -25,14 +25,15 @@ def factory(request, tmp):
     def mkstore(*args, **kw):
         store = AcidFS(tmp, *args, **kw)
 
-        tx = transaction.get()
-        tx.setUser("Test User")
-        tx.setExtendedInfo("email", "test@example.com")
+        if "user_name" not in kw:
+            tx = transaction.get()
+            tx.setUser("Test User")
+            tx.setExtendedInfo("email", "test@example.com")
 
-        os.chdir(tmp)
-        subprocess.check_call(["git", "config", "user.name", "Test User"])
-        subprocess.check_call(["git", "config", "user.email", "test@example.com"])
-        os.chdir(cwd)
+            os.chdir(tmp)
+            subprocess.check_call(["git", "config", "user.name", "Test User"])
+            subprocess.check_call(["git", "config", "user.email", "test@example.com"])
+            os.chdir(cwd)
 
         return store
 
@@ -42,17 +43,6 @@ def factory(request, tmp):
 
     request.addfinalizer(cleanup)
     return mkstore
-
-
-def test_new_repo_w_working_directory(factory, tmp):
-    factory()
-    assert os.path.exists(os.path.join(tmp, ".git"))
-
-
-def test_no_repo_dont_create(factory):
-    with pytest.raises(ValueError) as cm:
-        factory(create=False)
-    assert str(cm.exconly()).startswith("ValueError: No database found")
 
 
 @contextlib.contextmanager
@@ -110,8 +100,21 @@ def assert_directory_not_empty(path):
         assert e.filename == path
 
 
+def test_new_repo_w_working_directory(factory, tmp):
+    factory()
+    assert os.path.exists(os.path.join(tmp, ".git"))
+
+
+def test_no_repo_dont_create(factory):
+    with pytest.raises(ValueError) as cm:
+        factory(create=False)
+    assert str(cm.exconly()).startswith("ValueError: No database found")
+
+
 def test_read_write_file(factory, tmp):
     fs = factory()
+    assert fs.hash() == b"4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    # twice for branch coverage/excercising lazy computation and caching of the hash
     assert fs.hash() == b"4b825dc642cb6eb9a060e54bf8d69288fbee4904"
     with assert_no_such_file_or_directory("foo"):
         fs.hash("foo")
@@ -130,6 +133,12 @@ def test_read_write_file(factory, tmp):
     with fs.open("foo", "rb", buffering=80) as f:
         assert f.readable()
         assert f.read() == b"Hello\n"
+    with fs.open("foo", "wb", buffering=0) as f:
+        assert f.writable()
+        fprint(f, b"Hello Dad")
+    with fs.open("foo", "rb", buffering=0) as f:
+        assert f.readable()
+        assert f.read() == b"Hello Dad\n"
     with open(actual_file, "rb") as f:
         assert f.read() == b"Hello\n"
     transaction.commit()  # Nothing to commit
@@ -265,6 +274,11 @@ def test_open_edge_cases(factory):
     with assert_file_exists("bar"):
         fs.open("bar", "xb")
 
+    with fs.open("o", "w") as f:
+        with assert_no_such_file_or_directory("o/m/g"):
+            fs.open("o/m/g", "w")
+        f.write("hi mom!")
+
 
 def test_mkdir_edge_cases(factory):
     fs = factory()
@@ -282,12 +296,49 @@ def test_mkdir_edge_cases(factory):
         fs.mkdir("bar")
 
 
+def test_commit_name_and_email_from_factory(factory, tmp):
+    fs = factory(user_name="Fred Flintstone", user_email="fred@bed.rock")
+    fs.open("foo", "wb").write(b"Howdy!")
+    transaction.commit()
+
+    output = _check_output(["git", "log"], cwd=tmp)
+    assert b"Author: Fred Flintstone <fred@bed.rock>" in output
+
+
 def test_commit_metadata(factory, tmp):
     fs = factory()
     tx = transaction.get()
     tx.note("A test commit.")
     tx.setUser("Fred Flintstone")
     tx.setExtendedInfo("email", "fred@bed.rock")
+    fs.open("foo", "wb").write(b"Howdy!")
+    transaction.commit()
+
+    output = _check_output(["git", "log"], cwd=tmp)
+    assert b"Author: Fred Flintstone <fred@bed.rock>" in output
+    assert b"A test commit." in output
+
+
+def test_commit_metadata_blank_name(factory, tmp):
+    fs = factory()
+    tx = transaction.get()
+    tx.note("A test commit.")
+    tx.setUser("")
+    tx.setExtendedInfo("email", "fred@bed.rock")
+    fs.open("foo", "wb").write(b"Howdy!")
+    transaction.commit()
+
+    output = _check_output(["git", "log"], cwd=tmp)
+    assert b"Author: / <fred@bed.rock>" in output
+    assert b"A test commit." in output
+
+
+def test_commit_metadata_for_acidfs(factory, tmp):
+    fs = factory()
+    tx = transaction.get()
+    tx.note("A test commit.")
+    tx.extension["acidfs_user"] = "Fred Flintstone"
+    tx.extension["acidfs_email"] = "fred@bed.rock"
     fs.open("foo", "wb").write(b"Howdy!")
     transaction.commit()
 
@@ -716,6 +767,7 @@ def test_merge_add_same_file(factory):
     transaction.commit()
 
     assert fs.open("bar", "rb").read() == b"Grazie\n"
+    assert fs.open("baz", "rb").read() == b"Prego\n"
 
 
 def test_merge_add_different_file_same_path(factory):
