@@ -12,17 +12,13 @@ tests_require = ["pytest", "pytest-cov", "nox"]
 docs_require = ["Sphinx", "pylons-sphinx-themes"]
 
 here = os.path.abspath(os.path.dirname(__file__))
-try:
-    README = open(os.path.join(here, "README.rst")).read()
-    CHANGES = open(os.path.join(here, "CHANGES.txt")).read()
-except IOError:
-    README = CHANGES = ""
+README = open(os.path.join(here, "README.rst")).read()
 
 setup(
     name="acidfs",
     version=VERSION,
     description="ACID semantics for the filesystem.",
-    long_description=README + "\n\n" + CHANGES,
+    long_description=README,
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",

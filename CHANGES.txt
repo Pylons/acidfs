@@ -1,8 +1,8 @@
 Change Log
 ==========
 
-Unreleased
-----------
+2.0 (2022-01-18)
+----------------
 
 - Fix bug where commits without changes could produce extraneous git commits in
   repository.
