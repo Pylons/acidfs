@@ -9,7 +9,7 @@ requires = [
 ]
 
 tests_require = ["pytest", "pytest-cov", "nox"]
-docs_require = ["Sphinx"]
+docs_require = ["Sphinx", "pylons-sphinx-themes"]
 
 here = os.path.abspath(os.path.dirname(__file__))
 try:
